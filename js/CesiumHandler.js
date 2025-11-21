@@ -4,31 +4,26 @@ import {
   flyPivotFitModel,
   flyDirectionStayFitModel,
   flyToTilesetsWithPreset
-} from "./cameraMovement.js";
+} from "./CameraMovement.js";
 
-import { cameraFreeMode }   from "./CameraFree.js";
-import { createMeasurement }  from "./Measurement.js";
+import { CameraFreeMode }   from "./CameraFreeMode.js";
+import { CameraOrbitMode } from "./CameraOrbitMode.js";
+import { Measurement }  from "./Measurement.js";
 
 var CesiumHandler = (function(){
     //Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
         
-    var viewer, handler;
+    let viewer, handler;
     let infoBoxRootEl, infoBoxEls = {}, infoBoxEnabled = false;
     let inspectorBoxEl, inspectorLists, properties = {}, 
         inspectorBoxEnabled = false, $btnInspectorModelShow, inspectorSelectedModel = null, $btnResetHiddenModels=null;
     const inspectorHiddenModel = new Set();
 
-    let entityOverlayEl = null;              // ← HTML 오버레이 엘리먼트
-    const entityScratch = new Cesium.Cartesian2(); // ← preRender에서 재사용할 좌표 버퍼
+    let entityOverlayEl = null;              // HTML 오버레이 엘리먼트
+    const entityScratch = new Cesium.Cartesian2(); //preRender에서 재사용할 좌표 버퍼
 
-    let unionTilesetCenter;
+    let unionTilesetCenter; // 타일셋 중심 좌표
     let hoverCheckLastTime = 0;
-
-    // 회전 모드 상태
-    const orbitState = {
-        enabled: false,
-        callback: null
-    };
 
     // 마우스 hover 시 모델 하이라이트
     const hoverState = {
@@ -46,6 +41,7 @@ var CesiumHandler = (function(){
         blendAmount: undefined,
     };
 
+    // cesium 기본 환경
     var DefaultOption = {
         animation: false, //좌측 하단 둥근 위젯 노출여부
         shouldAnimate: false, // 애니메이션과 같이 시간에 따른 변경되는 요소가 있어서 시뮬레이션 시간을 진행하려고 하면
@@ -82,13 +78,166 @@ var CesiumHandler = (function(){
                 Cesium.Math.toRadians(90.0))
         }))
     }
-    const viewModel = {
+
+    // 지하시설물 특화 변수
+    const underFacilitySpecialEvn = {
         translucencyEnabled: true,
         fadeByDistance: true,
-        alpha: 0.5,
+        alpha: 0.5
     };
 
-    function initCesium(elementId){
+    let cameraFree; // 탐색모드
+    let cameraOrbitMode; // 회전모드
+    let measurement; // 측정도구 기능 제어
+    let toolBarApi; // 툴 단위 제어
+
+    const Mode = {
+        NORMAL: 'normal',
+        CAMERA_FREE: 'cameraFree',
+        ORBIT: 'orbit',
+        MEASURE_POINT: 'measure_point',
+        MEASURE_DISTANCE: 'measure_distance',
+        MEASURE_VERTICAL: 'measure_vertical',
+        MEASURE_AREA_GROUND: 'measure_area_ground',
+        MEASURE_AREA_SURFACE: 'measure_area_surface',
+    };
+
+    let currentMode = Mode.NORMAL;
+
+    function setMode(nextMode) {
+        if (currentMode === nextMode) return;
+
+        // 공통 리셋
+        measurement.stop();
+        cameraFree.disable();
+        cameraOrbitMode.disable();
+        infoBoxDisable();
+        inspectBoxDisable();
+        restoreModelState(selectedState);
+        if (toolBarApi) toolBarApi.showMountToolBar();
+
+        switch (nextMode) {
+        case Mode.NORMAL:
+            infoBoxEnable();
+            inspectBoxEnable();
+            break;
+
+        case Mode.CAMERA_FREE:
+            if (toolBarApi) toolBarApi.hiddenMountToolBar();
+            cameraFree.enable();
+            break;
+
+        case Mode.ORBIT:
+            if (toolBarApi) toolBarApi.hiddenMountToolBar();
+            cameraOrbitMode.enable(unionTilesetCenter);
+            break;
+
+        case Mode.MEASURE_POINT:
+            measurement.start("P");
+            break;
+
+        case Mode.MEASURE_DISTANCE:
+            measurement.start("D");
+            break;
+        
+        case Mode.MEASURE_VERTICAL:
+            measurement.start("V");
+            break;
+
+        case Mode.MEASURE_AREA_GROUND:
+            measurement.setAreaMode("ground");
+            measurement.start("A");
+            break;
+
+        case Mode.MEASURE_AREA_SURFACE:
+            measurement.setAreaMode("surface");
+            measurement.start("A");
+            break;
+        }
+
+        currentMode = nextMode;
+    }
+
+    async function init(elementId, { tilesetUrl, propertyUrls } = {}) {
+        viewer = initCesiumViewer(elementId);
+        translucencyUpdate(); // 지하 특화 환경
+        createCompass(); // 나침반 생성
+
+        cameraFree  = CameraFreeMode({ cesiumViewer: viewer });
+        cameraOrbitMode = CameraOrbitMode({cesiumViewer: viewer});
+        measurement = Measurement({ cesiumViewer: viewer });
+
+        createInfoBox({
+            container: viewer.container,
+            onCamreraFree: (enable) => setMode(enable ? Mode.CAMERA_FREE : Mode.NORMAL),
+            onOrbitMode:   (enable) => setMode(enable ? Mode.ORBIT : Mode.NORMAL),
+        });
+        infoBoxEnable();
+        
+
+        toolBarApi = measurement.mountToolBar({
+            container: viewer.container,
+            onPoint: () => setMode(Mode.MEASURE_POINT),
+            onLine: () => setMode(Mode.MEASURE_DISTANCE),
+            onVertical: () => setMode(Mode.MEASURE_VERTICAL),
+            onAreaGround: () => setMode(Mode.MEASURE_AREA_GROUND),
+            onAreaSurface: () => setMode(Mode.MEASURE_AREA_SURFACE),
+            onClose: () => setMode(Mode.NORMAL),
+            onInit: () => measurement.removeAll(),
+            onMarkerAdd() { console.log('마커 추가 클릭'); },
+            onMarkerClear() { console.log('마커 초기화 클릭'); }
+        });
+
+        createInspectBox();
+        inspectBoxEnable();
+
+        if (tilesetUrl) {
+            const tilesets = await renderingAllTileset({ url: tilesetUrl });
+            if (propertyUrls?.length) {
+                await loadTilesetInfo({url:propertyUrls});
+            }
+        }
+
+        setMode(Mode.NORMAL);
+        
+        return {viewer,Mode};
+    }
+
+    async function renderingAllTileset({url}) {
+        const loadedTilesets = await loadAllTilesets(url);
+        unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(loadedTilesets);
+        flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
+        addCenterVerticalLabel({
+            text: '서울시 공동구',
+            iconSrc: '/js/under.png',
+            length: 100.0
+        });
+        return loadedTilesets;
+    }
+
+    async function loadTilesetInfo({url}) {
+        let totalLoaded = 0;
+        for (const jsonUrl of url) {
+            try {
+                const response = await fetch(jsonUrl);
+
+                if (!response.ok) {
+                    console.warn(`JSON 파일 로드 실패 (${response.status}): ${jsonUrl}`);
+                    continue;
+                }
+                const propertiesData = await response.json();
+                properties = { ...properties, ...propertiesData };
+                totalLoaded += Object.keys(propertiesData).length;
+
+            } catch (error) {
+                console.error(`JSON 로드 실패: ${jsonUrl}`, error);
+            }
+        }
+        console.log(`${totalLoaded}개 객체 로드 완료`);
+        return properties;
+    }
+
+    function initCesiumViewer(elementId){
         if (!window.Cesium) { console.error('CesiumJS not loaded.'); return; }
         var ph = document.querySelector('.viewer-placeholder');
         if (ph) ph.remove();
@@ -102,17 +251,13 @@ var CesiumHandler = (function(){
         cesiumViewer.scene.globe.baseColor = new Cesium.Color(0, 0, 0, 1);
         $( '.cesium-viewer-bottom' ).remove();
     
-        viewer = cesiumViewer;
-        if (!handler) handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+        if (!handler) handler = new Cesium.ScreenSpaceEventHandler(cesiumViewer.canvas);
 
         handler.setInputAction(function () {
-            viewer.trackedEntity = undefined;
+            cesiumViewer.trackedEntity = undefined;
         }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-        translucencyUpdate();
-        createCompass();
-
-
+    
         const controller = cesiumViewer.scene.screenSpaceCameraController;
         // 줌/회전 민감도 낮추기 (기본 zoomFactor≈5, rotateFactor≈1 근처)
         controller.zoomFactor   = 1.5;  // 휠 줌 너무 세면 1.2~2.0 정도로
@@ -127,19 +272,7 @@ var CesiumHandler = (function(){
         cam.inertiaTranslate = 0.4;  // 이동 관성
         cam.inertiaZoom      = 0.4;  // 줌 관성
 
-
-        // fps 성능 표시
-        // cesiumViewer.scene.debugShowFramesPerSecond = true; // 60이상 화면 양호 / 30~60 보통 / 30이하 끊김
-        // function adjustPerf() {
-        //     const $perf = $(".cesium-performanceDisplay-defaultContainer");
-        //     if ($perf.length) {
-        //         $perf.css({top: "85px"});
-        //     }
-        //     // 한 번만 실행 후 이벤트 제거
-        //     viewer.scene.postRender.removeEventListener(adjustPerf);
-        // }
-        // viewer.scene.postRender.addEventListener(adjustPerf);
-        viewer.scene.preRender.addEventListener(function () {
+        cesiumViewer.scene.preRender.addEventListener(function () {
             if (!entityOverlayEl || entityOverlayEl.style.display === 'none') return;
 
             const entity = viewer.entities.getById('entity_icon');
@@ -148,14 +281,14 @@ var CesiumHandler = (function(){
                 return;
             }
 
-            const time = viewer.clock.currentTime;
+            const time = cesiumViewer.clock.currentTime;
             const pos  = Cesium.Property.getValueOrUndefined(entity.position, time);
             if (!pos) {
                 entityOverlayEl.style.display = 'none';
                 return;
             }
 
-            const canvasPos = viewer.scene.cartesianToCanvasCoordinates(pos, entityScratch);
+            const canvasPos = cesiumViewer.scene.cartesianToCanvasCoordinates(pos, entityScratch);
             if (!Cesium.defined(canvasPos)) {
                 entityOverlayEl.style.display = 'none';
                 return;
@@ -174,12 +307,13 @@ var CesiumHandler = (function(){
         size = 40,         // 원의 지름(px)
         padding = 4,       // 바깥 여백
         bgColor = 'rgba(11, 15, 20, 0.96)',
-        borderColor = 'rgba(255,255,255,0.4)',
-        shadow = true
+        borderColor = 'rgba(255, 233, 33, 1)',
+        shadow = true,
+        pixelScale = 1.5
     } = {}) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = (window.devicePixelRatio || 1) * pixelScale;
 
         const total = size + padding * 2; // 전체 캔버스 한 변
         canvas.width  = total * dpr;
@@ -202,14 +336,14 @@ var CesiumHandler = (function(){
         ctx.closePath();
         ctx.fillStyle   = bgColor;
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth   = 1;
+        ctx.lineWidth   = 2;
         ctx.fill();
         ctx.stroke();
         ctx.restore();
 
         if (!iconSrc) {
             ctx.save();
-            ctx.font         = '600 6px sans-serif';
+            ctx.font         = '600 8px sans-serif';
             ctx.textAlign    = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle    = '#ffffff';
@@ -284,14 +418,15 @@ var CesiumHandler = (function(){
             position: cylinderPos,
             orientation: Cesium.Transforms.headingPitchRollQuaternion(
                 cylinderPos,
-                new Cesium.HeadingPitchRoll(0, 0, 0) // ENU 기준 위쪽으로
+                new Cesium.HeadingPitchRoll(0, 0, 0) // ENU 기준 위쪽
             ),
             cylinder: {
                 length: lineLength,
-                topRadius: 0.5,      // 반경 0.5m
-                bottomRadius: 0.5,
-                material: Cesium.Color.WHITE.withAlpha(1),
+                topRadius: 0.2,      // 반경 0.5m
+                bottomRadius: 0.2,
+                material: Cesium.Color.WHITE.withAlpha(0.9),
                 outline: false,
+            
                 distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 8000.0)
             }
         });
@@ -300,8 +435,9 @@ var CesiumHandler = (function(){
         createRoundBadgeCanvas({
             text : text,
             iconSrc: iconSrc,
-            size: 40,
-            padding: 4
+            size: 50,
+            padding: 5,
+            pixelScale: 1.5 
         }).then((badgeCanvas) => {
             viewer.entities.add({
                 id : 'entity_icon',
@@ -337,7 +473,8 @@ var CesiumHandler = (function(){
         }
     }
 
-    function initInspectBox(){
+    function createInspectBox(){
+        
         const $viewerRoot = $(viewer.container);
         if (!$viewerRoot.length) return;
 
@@ -571,6 +708,18 @@ var CesiumHandler = (function(){
             $btnResetHiddenModels.show();
         }
     }
+
+    function inspectBoxEnable(){
+            if (inspectorBoxEnabled) return;
+            inspectorBoxEnabled = true;
+            if (handler) handler.setInputAction(onMouseLeftClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            
+    }
+    function inspectBoxDisable(){
+            inspectorBoxEnabled = false;
+            if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            setInspectorBox(false);
+    }
     
     function setInspectorBox(isOpen) {
         if (!inspectorBoxEl) return;
@@ -616,72 +765,14 @@ var CesiumHandler = (function(){
     }
 
     function translucencyUpdate() {
-        viewer.scene.globe.translucency.enabled = viewModel.translucencyEnabled;
+        viewer.scene.globe.translucency.enabled = underFacilitySpecialEvn.translucencyEnabled;
 
-        let alpha = Number(viewModel.alpha);
+        let alpha = Number(underFacilitySpecialEvn.alpha);
         alpha = !isNaN(alpha) ? alpha : 1.0;
         alpha = Cesium.Math.clamp(alpha, 0.0, 1.0);
 
         viewer.scene.globe.translucency.frontFaceAlphaByDistance.nearValue = alpha;
-        viewer.scene.globe.translucency.frontFaceAlphaByDistance.farValue = viewModel.fadeByDistance ? 1.0 : alpha;
-    }
-
-    function bindTranslucencyControls() {
-        const $root        = $(infoBoxRootEl);
-        const $chkTrans    = $root.find('#hud-translucency');
-        const $chkFade     = $root.find('#hud-fadeByDistance');
-        const $alphaRange  = $root.find('#hud-alpha-range');
-        const $alphaValue  = $root.find('#hud-alpha-value');
-
-        const setFadeAlphaEnabled = (enabled) => {
-            $chkFade.prop('disabled', !enabled);
-            $alphaRange.prop('disabled', !enabled);
-
-            const opacity = enabled ? 1 : 0.4;
-            $chkFade.closest('label').css('opacity', opacity);
-            $alphaRange.closest('div').css('opacity', opacity); // Alpha 행 전체 흐리게
-        };
-
-        // 초기값 동기화 (viewModel → UI)
-        $chkTrans.prop('checked', !!viewModel.translucencyEnabled);
-        $chkFade.prop('checked', !!viewModel.fadeByDistance);
-        $alphaRange.val(viewModel.alpha);
-        $alphaValue.text(viewModel.alpha.toFixed(1));
-
-        setFadeAlphaEnabled(!!viewModel.translucencyEnabled);
-
-        // alpha 값 적용 공통 함수
-        const applyAlpha = (val) => {
-            let alpha = parseFloat(val);
-            if (isNaN(alpha)) alpha = 1.0;
-            alpha = Cesium.Math.clamp(alpha, 0.0, 1.0);
-
-            viewModel.alpha = alpha;
-            $alphaRange.val(alpha);
-            $alphaValue.text(alpha.toFixed(1)); 
-
-            translucencyUpdate();
-        };
-
-        // Translucency on/off
-        $chkTrans.on('change', () => {
-            const enabled = $chkTrans.is(':checked');
-            viewModel.translucencyEnabled = enabled;
-            setFadeAlphaEnabled(enabled);
-            translucencyUpdate();
-        });
-
-        // Fade by distance on/off
-        $chkFade.on('change', () => {
-            viewModel.fadeByDistance = $chkFade.is(':checked');
-            translucencyUpdate();
-        });
-
-        // Alpha 슬라이더
-        $alphaRange.on('input change', function () {
-            applyAlpha(this.value);
-        });
-
+        viewer.scene.globe.translucency.frontFaceAlphaByDistance.farValue = underFacilitySpecialEvn.fadeByDistance ? 1.0 : alpha;
     }
 
     async function createTileset(url) {
@@ -787,7 +878,7 @@ var CesiumHandler = (function(){
         return union;
     }
 
-    function createInfoBox(container,onCamreraFree,onOrbitMode) {
+    function createInfoBox({container,onCamreraFree,onOrbitMode}) {
         if (infoBoxRootEl) return; // 중복 생성 방지
         const css = `
                 /* camerafree 도움말 */
@@ -1214,6 +1305,7 @@ var CesiumHandler = (function(){
             scene.backgroundColor = on ? Cesium.Color.BLACK : Cesium.Color.fromCssColorString('#0b0f14');
         });
         
+        // fps 변경사항 감지
         $performance.on('change', function(){
             const on = $(this).is(':checked');
             // 60이상 화면 양호 / 30~60 보통 / 30이하 끊김
@@ -1248,8 +1340,6 @@ var CesiumHandler = (function(){
                 $cameraFree.removeClass('is-active'); 
                 $cameraFree.addClass('is-active');
                 onCamreraFree?.(true);
-                setOrbitMode(false);
-                
                 $orbitBtn.removeClass('is-active');
             }
         });
@@ -1262,88 +1352,83 @@ var CesiumHandler = (function(){
             const isActive = $orbitBtn.hasClass('is-active');
             if(isActive){
                 $orbitBtn.removeClass('is-active');
-                setOrbitMode(false);
                 onOrbitMode?.(false);
             }else{
                 $orbitBtn.addClass('is-active');
-                
-                setOrbitMode(true);
                 onOrbitMode?.(true);
-
                 $cameraFree.removeClass('is-active');
             }
         });
-    }
 
-    function setOrbitMode(on) {
-        if (!viewer || !unionTilesetCenter) {
-            console.warn("viewer 또는 unionTilesetCenter가 없습니다.");
-            return;
-        }
+        function bindTranslucencyControls() {
+            const $chkTrans    = $root.find('#hud-translucency');
+            const $chkFade     = $root.find('#hud-fadeByDistance');
+            const $alphaRange  = $root.find('#hud-alpha-range');
+            const $alphaValue  = $root.find('#hud-alpha-value');
 
-        const scene  = viewer.scene;
-        const camera = viewer.camera;
+            const setFadeAlphaEnabled = (enabled) => {
+                $chkFade.prop('disabled', !enabled);
+                $alphaRange.prop('disabled', !enabled);
 
-        // 이미 같은 상태면 무시
-        if (on && orbitState.enabled) return;
-        if (!on && !orbitState.enabled) return;
-
-        if (on) {
-            orbitState.enabled = true;
-
-            // trackedEntity가 잡혀 있으면 해제
-            viewer.trackedEntity = undefined;
-
-            const center = unionTilesetCenter.center;
-            const radius = unionTilesetCenter.radius;
-
-            // 거리/각도 설정
-            const pitch = Cesium.Math.toRadians(-45.0);   // -45도 내려다보기
-            const range = radius * 2.0;                   // 모델보다 조금 떨어져서
-
-            // 시작 시점엔 현재 heading 그대로 사용
-            let heading = camera.heading;
-
-            // 한 바퀴 도는 속도 (초당 10도 정도)
-            const angularSpeed = Cesium.Math.toRadians(10.0); // rad/sec
-
-            // 처음 lookAt으로 pivot을 center로 박아둠
-            camera.lookAt(
-                center,
-                new Cesium.HeadingPitchRange(heading, pitch, range)
-            );
-
-            let lastTime = performance.now() / 1000;  // 초 단위
-
-            // preRender 콜백
-            const cb = function (scene, time) {
-                if (!orbitState.enabled) return;
-
-                const now = performance.now() / 1000;
-                const dt  = now - lastTime;
-                lastTime  = now;
-                
-                heading += angularSpeed * dt;
-
-                camera.lookAt(
-                    center,
-                    new Cesium.HeadingPitchRange(heading, pitch, range)
-                );
+                const opacity = enabled ? 1 : 0.4;
+                $chkFade.closest('label').css('opacity', opacity);
+                $alphaRange.closest('div').css('opacity', opacity); // Alpha 행 전체 흐리게
             };
 
-            orbitState.callback = cb;
-            scene.preRender.addEventListener(cb);
-        } else {
-            // off
-            orbitState.enabled = false;
-            if (orbitState.callback) {
-                viewer.scene.preRender.removeEventListener(orbitState.callback);
-                orbitState.callback = null;
-            }
+            // 초기값 동기화
+            $chkTrans.prop('checked', !!underFacilitySpecialEvn.translucencyEnabled);
+            $chkFade.prop('checked', !!underFacilitySpecialEvn.fadeByDistance);
+            $alphaRange.val(underFacilitySpecialEvn.alpha);
+            $alphaValue.text(underFacilitySpecialEvn.alpha.toFixed(1));
 
-            // pivot 해제 (그냥 현재 위치/방향 유지)
-            camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            setFadeAlphaEnabled(!!underFacilitySpecialEvn.translucencyEnabled);
+
+            // alpha 값 적용 공통 함수
+            const applyAlpha = (val) => {
+                let alpha = parseFloat(val);
+                if (isNaN(alpha)) alpha = 1.0;
+                alpha = Cesium.Math.clamp(alpha, 0.0, 1.0);
+
+                underFacilitySpecialEvn.alpha = alpha;
+                $alphaRange.val(alpha);
+                $alphaValue.text(alpha.toFixed(1)); 
+
+                translucencyUpdate();
+            };
+
+            // Translucency on/off
+            $chkTrans.on('change', () => {
+                const enabled = $chkTrans.is(':checked');
+                underFacilitySpecialEvn.translucencyEnabled = enabled;
+                setFadeAlphaEnabled(enabled);
+                translucencyUpdate();
+            });
+
+            // Fade by distance on/off
+            $chkFade.on('change', () => {
+                underFacilitySpecialEvn.fadeByDistance = $chkFade.is(':checked');
+                translucencyUpdate();
+            });
+
+            // Alpha 슬라이더
+            $alphaRange.on('input change', function () {
+                applyAlpha(this.value);
+            });
+
         }
+    }
+
+    function infoBoxEnable() {
+        if (infoBoxEnabled) return;
+        infoBoxEnabled = true;
+        if (handler) handler.setInputAction(onMouseMove, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+        //infoBoxRootEl.style.display = 'block';
+    }
+
+    function infoBoxDisable() {
+        infoBoxEnabled = false;
+        if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+        //infoBoxRootEl.style.display = 'none';
     }
 
     function applyModelHighlight(state, model, color, blendAmount) {
@@ -1597,98 +1682,12 @@ var CesiumHandler = (function(){
     }
 
     return {
-        init : (elementId) =>{
-            return initCesium(elementId);
-        },
-        loadAllTilesets : async ({url}) => {
-            const loadedTilesets = await loadAllTilesets(url);
-            unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(loadedTilesets);
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
-            addCenterVerticalLabel({
-                text: '서울시 공동구',
-                iconSrc: '/js/under.png',
-                length: 100.0
-            });
-            return loadedTilesets;
-        },
-        loadTileset : async (url) => {
-            return await createTileset(url);
-        },
-        mountInfoBox({container,onCamreraFree,onOrbitMode}) {
-            const containerEl = (typeof container === 'string') ? document.querySelector(container) : container;
-            if (!containerEl) { throw new Error('Info Box 생성: 유효한 container가 필요합니다.'); }
-            createInfoBox(containerEl,onCamreraFree,onOrbitMode);
-            this.infoBoxEnable();
-        },
-        infoBoxEnable() {
-            if (infoBoxEnabled) return;
-            infoBoxEnabled = true;
-            if (handler) handler.setInputAction(onMouseMove, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-            //infoBoxRootEl.style.display = 'block';
-        },
-        infoBoxDisable() {
-            infoBoxEnabled = false;
-            if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-            //infoBoxRootEl.style.display = 'none';
-        },
-
-        mountInspectBox(){
-            initInspectBox();
-            if (handler) handler.setInputAction(onMouseLeftClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-        },
-        inspectBoxEnable(){
-            if (inspectorBoxEnabled) return;
-            inspectorBoxEnabled = true;
-            if (handler) handler.setInputAction(onMouseLeftClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-            
-        },
-        inspectBoxDisable(){
-            inspectorBoxEnabled = false;
-            if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
-            setInspectorBox(false);
-        },
-        async loadTilesetInfo(propertiesJsonUrls) {
-            let totalLoaded = 0;
-            for (const jsonUrl of propertiesJsonUrls) {
-                try {
-                    const response = await fetch(jsonUrl);
-
-                    if (!response.ok) {
-                        console.warn(`JSON 파일 로드 실패 (${response.status}): ${jsonUrl}`);
-                        continue;
-                    }
-                    const propertiesData = await response.json();
-                    properties = { ...properties, ...propertiesData };
-                    totalLoaded += Object.keys(propertiesData).length;
-
-                } catch (error) {
-                    console.error(`JSON 로드 실패: ${jsonUrl}`, error);
-                }
-            }
-            console.log(`${totalLoaded}개 객체 로드 완료`);
-            return properties;
-        },
-        addModelMarker: (title,lon,lat) => {
-            viewer.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(lon,lat,1000),
-                id : 'icon',
-                label: {
-                    text: title,
-                    font: "14pt sans-serif",
-                    fillColor: Cesium.Color.BLACK,
-                    outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 2,
-                    showBackground: true,
-                    backgroundColor: new Cesium.Color(1, 1, 1, 0.7),
-                    backgroundPadding: new Cesium.Cartesian2(8, 4),
-                    //heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                    //disableDepthTestDistance: Number.POSITIVE_INFINITY, // 터레인 앞에 라벨 그리기
-                    scaleByDistance :new Cesium.NearFarScalar(700, 1, 1000, 0.7),
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE
-                }
-            });
-        }
-    }
+        init,
+        setMode,
+        Mode
+    };
 })();
 
 export default CesiumHandler;
+
+

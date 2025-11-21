@@ -1,26 +1,18 @@
-var Measurement = (function () {
-    var viewer, handler = null;
-    var mode; // 'D' | 'A' | 'V' (거리 or 면적)
-    var areaOptions = 'ground';
-    var floatingPoint, activeShape;
-    var activeShapePoints = [];
-    var keydownHandler = null;
-    var mouseLabel,prevCursor; //측정도구 라벨/커서
+export function Measurement({cesiumViewer}){
+    let viewer = cesiumViewer;
+    let handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    let mode; // 'D' | 'A' | 'V' (거리 or 면적 or 수직)
+    let areaOptions = 'ground';
+    let floatingPoint, activeShape;
+    let activeShapePoints = [];
+    let keydownHandler = null;
+    let mouseLabel,prevCursor; //측정도구 라벨/커서
 
     // 확정된 것들(완료 후 남기는 엔티티)
-    var measureEndEntity = { graphics: [], points: [], labels: [] };
+    let measureEndEntity = { graphics: [], points: [], labels: [] };
 
     // 진행 중(세션) 엔티티: 취소 시 전부 제거
-    var session = { points: [], labels: [], graphics: [] };
-
-    function ensureHandler() {
-        if (!handler) handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
-    }
-
-    function logMissing(v, name) {
-        if (!v) { console.log(name + '가 정의되지 않음'); return true; }
-        return false;
-    }
+    let session = { points: [], labels: [], graphics: [] };
 
     function offHandler() {
         if (!handler) return;
@@ -81,14 +73,13 @@ var Measurement = (function () {
 
     function createLabel(pos, text, options={}) {
         const LABEL_STYLE = {
-            font: 'bold 10px Inter, Pretendard, system-ui, sans-serif',
+            font: 'bold 11px Inter, Pretendard, system-ui, sans-serif',
             rowH: 22,          // 한 줄 높이
             padX: 8,          // 좌우 패딩
             radius: 11,        
             gap: 5,            // 줄 간격
             fg: '#FFFFFF',
-            // 근/원 거리 스케일
-            scale: 0.7,
+            scale: 1,
             near: 250, nearScale: 1.0,
             far: 1800, farScale: 0.55
         };
@@ -166,10 +157,10 @@ var Measurement = (function () {
                 scale: LABEL_STYLE.scale,
                 pixelOffset: pixelOffset,
              
-                scaleByDistance: new Cesium.NearFarScalar(
-                    LABEL_STYLE.near, LABEL_STYLE.nearScale,
-                    LABEL_STYLE.far,  LABEL_STYLE.farScale
-                ),
+                // scaleByDistance: new Cesium.NearFarScalar(
+                //     LABEL_STYLE.near, LABEL_STYLE.nearScale,
+                //     LABEL_STYLE.far,  LABEL_STYLE.farScale
+                // ),
                 eyeOffset: new Cesium.Cartesian3(0, 0, -1),
                 heightReference: Cesium.HeightReference.NONE,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY
@@ -286,7 +277,6 @@ var Measurement = (function () {
     }
 
     function bindDrawing() {
-        ensureHandler(); 
         function areaValue(points) {
             if (!points || points.length < 3) return 0;
 
@@ -579,52 +569,45 @@ var Measurement = (function () {
         return { verticalLine, label, pModel, pTerr };
     }
 
-    return {
-        init: function (objMap) {
-            viewer = objMap && objMap.cesiumViewer;
-   
-
-            if (logMissing(viewer, 'viewer')) return false;
-            return true;
-        },
-        start: function (m) {
+    function start(m) {
             mode = m;
             resetSession();
             offHandler();
-            destroyHandler(); 
-
             bindDrawing();
             bindKeyboard();
             ensureMouseLabel();
             mouseLabel.label.text = setMouseLabelText(mode, areaOptions); 
             setDrawingCursor(true);
-        },
-        stop: function(){
+    }
+
+    function stop(){
             offHandler();
-            destroyHandler();
-            
             resetSession(); 
             unbindKeyboard()
             hideMouseLabel(); 
             setDrawingCursor(false); 
             mode=undefined;
              $(".tool-root").find('.tool').removeClass('is-active');
-        },
-        // 확정된 엔티티 전체 제거
-        removeAll: function () {
+    }
+
+    function removeAll() {
             measureEndEntity.graphics.forEach(function (g) { viewer.entities.remove(g); });
             measureEndEntity.points.forEach(function (p) { viewer.entities.remove(p); });
             measureEndEntity.labels.forEach(function (l) { viewer.entities.remove(l); });
             measureEndEntity.graphics = [];
             measureEndEntity.points = [];
             measureEndEntity.labels = [];
-        },
-        setAreaMode: function (mode) {
+    }
+
+    function setAreaMode(mode) {
             // 'ground' | 'surface' 만 허용
             areaOptions = (mode === 'surface') ? 'surface' : 'ground';
-        },
-        mountToolBar({container, onPoint, onLine, onVertical, onAreaGround, onAreaSurface, 
+    }
+
+    function mountToolBar({container, onPoint, onLine,
+            onVertical, onAreaGround, onAreaSurface, 
             onClose, onInit ,onMarkerAdd, onMarkerClose}){
+
             const root = (typeof container === 'string') ? document.querySelector(container) : container;
             if (!root) { throw new Error('Tool Bar 생성: 유효한 container가 필요합니다.'); }
 
@@ -941,10 +924,8 @@ var Measurement = (function () {
            return {
                 showMountToolBar,
                 hiddenMountToolBar,
-                root: toolRoot
             };
-        }
-    };
-})();
+    }
 
-export default Measurement;
+    return {start, stop, setAreaMode, removeAll, mountToolBar};
+}

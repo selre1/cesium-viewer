@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Model Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/tachyons@4.12.0/css/tachyons.min.css" />
+  <!-- <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css"rel="stylesheet"> -->
+   <link href="./cesium/Widgets/widgets.css"rel="stylesheet"> 
+  <style>
+    :root { --accent:#2f80ff; --bg:#0b0f14; --panel:#11161c; --stroke:#222a33; --text:#e6edf3; --sub:#98a6b3; --topbar:56px; }
+    [data-theme="light"]{ --bg:#f7f9fc; --panel:#fff; --stroke:#e5eaf0; --text:#0b1929; --sub:#506174; }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{ margin:0; font-family:-apple-system, Segoe UI, Roboto, "Noto Sans", Arial; color:var(--text); background:var(--bg); overflow:hidden; }
+    a{ color:inherit; text-decoration:none; }
+
+    /* Top bar */
+    .topbar{ position:sticky; top:0; z-index:50; height:var(--topbar); display:flex; align-items:center; backdrop-filter:blur(8px); border-bottom:1px solid #18212b; background:rgba(11,15,20,.9); }
+    .logo{ display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; border-radius:8px; background:var(--accent); color:#fff; font-weight:800; }
+    .btn{ border:1px solid #27313c; background:#0f151c; color:var(--text); padding:6px 12px; border-radius:12px; font-size:14px; cursor:pointer; }
+    .btn:active{ transform:translateY(1px); }
+    .search{ min-width:220px; border:1px solid #27313c; background:#0f151c; border-radius:12px; color:var(--text); padding:8px 12px; }
+
+    /* Shell layout: left rail (56px) + main + right inspector */
+    .shell{ display:grid; grid-template-columns: 56px 1fr 360px; width:100%; max-width:none; margin:0; position:relative; height:calc(100vh - var(--topbar)); }
+    .shell > * { min-height:0; min-width:0; }
+    .rail{ background:var(--panel); border-right:1px solid var(--stroke); }
+    .rail .icon{     
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    color: #ffffff;
+    background: black;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    border-radius: .375rem;
+    background-color: transparent;
+    background-image: none;
+    border: 0 solid #e5e7eb;
+    box-sizing: border-box;
+    cursor: pointer;}
+    .rail .icon.active, .rail .icon:hover{ background:#142033; color:#8fb4ff; }
+
+    .shell.no-inspector{ grid-template-columns:56px 1fr; }
+    .inspector[hidden]{ display:none !important; }
+
+    /* Drawer that slides out from the left */
+    .drawer{ position:absolute; left:56px; top:0; height:100%; width:320px; background:var(--panel); border-right:1px solid var(--stroke); transform: translateX(-16px); opacity:0; pointer-events:none; transition: transform .25s ease, opacity .2s ease; z-index:30; }
+    .drawer.open{ transform: translateX(0); opacity:1; pointer-events:auto; }
+    .drawer .head{ display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--stroke); }
+    .drawer .scroll{ height: calc(100% - 44px); overflow:auto; padding:12px; }
+    .tree{ border:1px solid var(--stroke); border-radius:10px; }
+    .tree-h{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; }
+    .chip{ background:#15202b; color:var(--sub); font-size:12px; padding:2px 8px; border-radius:6px; }
+    .tree-b{ border-top:1px solid var(--stroke); padding:8px 12px; }
+    .item{ display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-radius:8px; }
+    .item:hover{ background:#0f151c; }
+
+    /* Main */
+    main{ position:relative; }
+    /* #viewerRoot{ height:100%; display:grid; place-items:center; color: var(--sub); } */
+    #viewerRoot{
+      height:100%;
+      width:100%;
+      position:relative;
+      display:block;
+      overflow:hidden;
+    }
+    .viewer-placeholder{ display:flex; flex-direction:column; align-items:center; gap:8px; opacity:.9; }
+    .viewer-placeholder .box{ width:120px; height:80px; border:1px dashed var(--stroke); border-radius:12px; }
+    .selection{ position:absolute; right:16px; top:16px; border:1px solid #21406b; background:#0d1726; color:#8fb4ff; border-radius:10px; padding:6px 10px; font-size:12px; pointer-events:none; }
+   
+
+    /* Right inspector */
+    .inspector{ background:var(--panel); border-left:1px solid var(--stroke); display:flex; flex-direction:column; height:100%; overflow:hidden; }
+    .kv{ display:grid; grid-template-columns:120px 1fr; gap:12px; padding:10px 0; border-bottom:1px solid var(--stroke); font-size:14px; }
+    .kv:last-child{ border-bottom:0; }
+    .kv .k{ color:var(--sub); }
+
+    /* Header actions & dropdown */
+    .header-actions{ display:flex; align-items:center; }
+    .more{ display:none; align-items:center; justify-content:center; }
+    .dropdown{ position:absolute; right:12px; top:calc(var(--topbar) + 6px); background:var(--panel); border:1px solid var(--stroke); border-radius:12px; padding:8px; display:none; z-index:70; }
+    .dropdown.open{ display:block; }
+    .dropdown .btn{ width:100%; text-align:left; margin:4px 0; }
+
+    /* Responsive */
+    @media (max-width: 1200px){ .shell{ grid-template-columns:56px 1fr 320px; } }
+    @media (max-width: 1024px){ 
+      .shell{ grid-template-columns:56px 1fr; }
+      .inspector{ display:none; }
+      .header-actions{ display:none; }
+      .more{ display:inline-flex; }
+      .search{ display:none; }
+    }
+  </style>
+
+
+<style>
+</style>
+  
+  <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
+   <script src="./cesium/Cesium.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+
+
+  <script src="./js/index.js" type="module"></script>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="flex items-center justify-between ph3 pv2" style="max-width:100%; width:100%;">
+      <div class="flex items-center">
+        <div class="logo mr2">><</div>
+        <div class="fw6">3D Model Viewer</div>
+        <span class="ml2 f7 bg-dark-blue white br2 ph2 pv1" style="background:#142033;color:#8fb4ff;">for 서울시</span>
+      </div>
+      <div class="flex items-center header-actions">
+        <input class="search mr2" placeholder="Search…" aria-label="Search" />
+        <button class="btn mr1" id="btnTheme" aria-pressed="true">Temp</button>
+        <button class="btn mr1" id="btnShare">Share</button>
+        <button class="btn" id="btnHelp">Help</button>
+      </div>
+      <button class="btn more ml2" id="btnMenu" aria-haspopup="true" aria-expanded="false" title="More">⋯</button>
+    </div>
+  </header>
+
+  <!-- dropdown menu -->
+  <div class="dropdown" id="menuDropdown" role="menu" aria-hidden="true">
+    <button class="btn" id="menuTheme">Temp</button>
+    <button class="btn" id="menuShare">Share</button>
+    <button class="btn" id="menuHelp">Help</button>
+  </div>
+
+  <!-- Shell: rail + main + inspector -->
+  <div class="shell" id="shell">
+    <!-- Left vertical rail -->
+    <nav class="rail flex flex-column items-center pv3">
+      <button class="icon mb2" id="btnModels" title="Models" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M12 3v18"/></svg>
+      </button>
+      <button class="icon mb2" id="btnLayers" title="Layers">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M21 12l-9 5-9-5"/></svg>
+      </button>
+      <button class="icon" id="btnClipping" title="Clipping">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h18"/><path d="M7 21V3"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+      </button>
+    </nav>
+
+    <!-- Slide-out drawer (Models) -->
+    <aside class="drawer" id="drawerModels" aria-label="Models drawer">
+      <div class="head">
+        <div class="flex items-center">
+          <span class="mr2">Models</span>
+          <span class="f7 ph2 pv1 br2" style="background:#15202b;color:var(--sub);">Latest</span>
+        </div>
+        <button class="btn" id="btnCloseDrawer" style="padding:4px 8px;font-size:12px;">Close</button>
+      </div>
+      <div class="scroll">
+        <div class="tree">
+          <div class="tree-h">
+            <div class="flex items-center">
+              <span class="mr2 br2" style="display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;background:#15233a;color:#8fb4ff;font-size:12px;">◆</span>
+              <span>sample model</span>
+            </div>
+            <span class="chip">Aug 4, 2023</span>
+          </div>
+          <div class="tree-b">
+            <div class="item">
+              <span style="color:var(--sub)">Base</span>
+              <button class="btn" style="padding:4px 8px;font-size:12px;">Select</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main center -->
+    <main>
+      <div id="viewerRoot">
+        <div class="viewer-placeholder">
+          <div class="box"></div>
+          <div>Place your WebGL/WebGPU viewer here</div>
+        </div>
+      </div>
+      <div class="selection">selection: <b>None</b></div>            
+    </main>
+
+    <!-- Right inspector -->
+    <aside class="inspector pv2 ph3">
+      <div class="flex items-center justify-between bb b--black-20" style="border-color:var(--stroke);">
+        <h3 class="ma0 f6 fw6">Inspector</h3>
+        <button class="btn" id="btnInspector" style="padding:4px 8px;font-size:12px;">Close</button>
+      </div>
+      <div style="flex:1; overflow:auto;">
+        <div class="kv"><div class="k">id</div><div>—</div></div>
+        <div class="kv"><div class="k">type</div><div>—</div></div>
+        <div class="kv"><div class="k">bounds</div><div>—</div></div>
+        <div class="kv"><div class="k">units</div><div>—</div></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Theme
+    function toggleTheme(){
+      return;
+      const r=document.documentElement; const dark=r.getAttribute('data-theme')!=='light';
+      r.setAttribute('data-theme', dark?'light':'dark');
+      const t=document.getElementById('btnTheme'); if(t) t.setAttribute('aria-pressed', String(!dark));
+    }
+    document.getElementById('btnTheme')?.addEventListener('click', toggleTheme);
+
+    // Drawer logic
+    const btnModels = document.getElementById('btnModels');
+    const drawerModels = document.getElementById('drawerModels');
+    const btnCloseDrawer = document.getElementById('btnCloseDrawer');
+    function openDrawer(){ drawerModels.classList.add('open'); btnModels.classList.add('active'); btnModels.setAttribute('aria-expanded','true'); }
+    function closeDrawer(){ drawerModels.classList.remove('open'); btnModels.classList.remove('active'); btnModels.setAttribute('aria-expanded','false'); }
+    btnModels.addEventListener('click', ()=>{ drawerModels.classList.contains('open') ? closeDrawer() : openDrawer(); });
+    btnCloseDrawer.addEventListener('click', closeDrawer);
+
+    // Right inspector toggle
+    const inspector = document.querySelector('.inspector');
+    const btnInspector = document.getElementById('btnInspector');
+    const shellEl = document.getElementById('shell');
+    function toggleInspector(){
+      const isHidden = inspector.hasAttribute('hidden');
+      if (isHidden) {
+        inspector.removeAttribute('hidden');
+        shellEl.classList.remove('no-inspector');
+      } else {
+        inspector.setAttribute('hidden','');
+        shellEl.classList.add('no-inspector');
+      }
+    }
+    btnInspector.addEventListener('click', toggleInspector);
+
+    // Header dropdown (mobile)
+    const menuBtn = document.getElementById('btnMenu');
+    const menu = document.getElementById('menuDropdown');
+    function closeMenu(){ if(menu) { menu.classList.remove('open'); menu.setAttribute('aria-hidden','true'); menuBtn?.setAttribute('aria-expanded','false'); } }
+    function toggleMenu(){ if(!menu) return; const isOpen = menu.classList.contains('open'); isOpen ? closeMenu() : (menu.classList.add('open'), menu.setAttribute('aria-hidden','false'), menuBtn?.setAttribute('aria-expanded','true')); }
+    menuBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMenu(); });
+    document.addEventListener('click', (e)=>{ if(menu?.classList.contains('open')){ const within = menu.contains(e.target) || menuBtn?.contains(e.target); if(!within) closeMenu(); } });
+
+    // ESC closes drawer & menu
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ closeDrawer(); closeMenu(); } });
+
+    // Dropdown items
+    //document.getElementById('menuTheme')?.addEventListener('click', toggleTheme);
+    document.getElementById('menuShare')?.addEventListener('click', ()=> alert('Share: stub'));
+    document.getElementById('menuHelp')?.addEventListener('click', ()=> alert('Help: stub'));
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "gis-3d-engine",
+  "version": "1.0.0",
+  "description": "Cesium 3D Tiles Viewer",
+  "scripts": {
+    "start": "live-server --host=localhost --port=8000 --open=test.html"
+  },
+  "dependencies": {
+    "cesium": "^1.134.1"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

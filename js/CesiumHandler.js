@@ -6,6 +6,9 @@ import {
   flyToTilesetsWithPreset
 } from "./cameraMovement.js";
 
+import { cameraFreeMode }   from "./CameraFree.js";
+import { createMeasurement }  from "./Measurement.js";
+
 var CesiumHandler = (function(){
     //Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
         

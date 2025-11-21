@@ -86,7 +86,6 @@ $(async function () {
             Measurement.removeAll();
         },
         onMarkerAdd() {
-            //
             console.log('마커 추가 클릭');
         },
         onMarkerClear() {

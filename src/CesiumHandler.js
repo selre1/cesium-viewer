@@ -1,11 +1,9 @@
 import {
-  moveSlidingDirection,
-  moveNormalDirection,
-  flyPivotFitModel,
-  flyDirectionStayFitModel,
-  flyToTilesetsWithPreset
-} from "./CameraMovement.js";
-
+  HUD_STYLE_ID, HUD_CSS, HUD_HTML,
+  INSPECTOR_STYLE_ID, INSPECTOR_CSS, INSPECTOR_HTML,
+  COMPASS_SVG
+} from "./UiTemplates.js";
+import {flyDirectionStayFitModel, flyToTilesetsWithPreset} from "./CameraMovement.js";
 import { CameraFreeMode }   from "./CameraFreeMode.js";
 import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
@@ -14,7 +12,7 @@ var CesiumHandler = (function(){
     //Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
         
     let viewer, handler;
-    let infoBoxRootEl, infoBoxEls = {}, infoBoxEnabled = false;
+    let infoBoxEls = {}, infoBoxEnabled = false;
     let inspectorBoxEl, inspectorLists, properties = {}, 
         inspectorBoxEnabled = false, $btnInspectorModelShow, inspectorSelectedModel = null, $btnResetHiddenModels=null;
     const inspectorHiddenModel = new Set();
@@ -24,6 +22,17 @@ var CesiumHandler = (function(){
 
     let unionTilesetCenter; // 타일셋 중심 좌표
     let hoverCheckLastTime = 0;
+
+    let currentModelConfig = { // 기본 모델 정보
+        tilesetUrl: null,
+        propertyUrls: [],
+        info: {
+            text: undefined,
+            iconSrc: undefined,
+            length: 100.0,
+        },
+    };
+    let loaded_3Dtilesets = []; // 현재 scene에 추가된 tilesets
 
     // 마우스 hover 시 모델 하이라이트
     const hoverState = {
@@ -91,6 +100,7 @@ var CesiumHandler = (function(){
     let measurement; // 측정도구 기능 제어
     let toolBarApi; // 툴 단위 제어
 
+    // 현재 기능 정의
     const Mode = {
         NORMAL: 'normal',
         CAMERA_FREE: 'cameraFree',
@@ -102,8 +112,10 @@ var CesiumHandler = (function(){
         MEASURE_AREA_SURFACE: 'measure_area_surface',
     };
 
+    // 초기 기본 모드 정의
     let currentMode = Mode.NORMAL;
 
+    // 모드 전환
     function setMode(nextMode) {
         if (currentMode === nextMode) return;
 
@@ -158,20 +170,16 @@ var CesiumHandler = (function(){
         currentMode = nextMode;
     }
 
-    async function init(elementId, { tilesetUrl, propertyUrls } = {}) {
+    async function init(elementId, { tilesetUrl, propertyUrls, info} = {}) {
         viewer = initCesiumViewer(elementId);
         translucencyUpdate(); // 지하 특화 환경
-        createCompass(); // 나침반 생성
+        createCompas(); // 나침반 생성
 
         cameraFree  = CameraFreeMode({ cesiumViewer: viewer });
         cameraOrbitMode = CameraOrbitMode({cesiumViewer: viewer});
         measurement = Measurement({ cesiumViewer: viewer });
 
-        createInfoBox({
-            container: viewer.container,
-            onCamreraFree: (enable) => setMode(enable ? Mode.CAMERA_FREE : Mode.NORMAL),
-            onOrbitMode:   (enable) => setMode(enable ? Mode.ORBIT : Mode.NORMAL),
-        });
+        createInfoBox({container: viewer.container});
         infoBoxEnable();
         
 
@@ -191,50 +199,18 @@ var CesiumHandler = (function(){
         createInspectBox();
         inspectBoxEnable();
 
-        if (tilesetUrl) {
-            const tilesets = await renderingAllTileset({ url: tilesetUrl });
-            if (propertyUrls?.length) {
-                await loadTilesetInfo({url:propertyUrls});
-            }
-        }
+
+        currentModelConfig = {
+            tilesetUrl: tilesetUrl,
+            propertyUrls: propertyUrls,
+            info: info,
+        };
+
+        await applyModelConfig(currentModelConfig);
 
         setMode(Mode.NORMAL);
         
         return {viewer,Mode};
-    }
-
-    async function renderingAllTileset({url}) {
-        const loadedTilesets = await loadAllTilesets(url);
-        unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(loadedTilesets);
-        flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
-        addCenterVerticalLabel({
-            text: '서울시 공동구',
-            iconSrc: '/js/under.png',
-            length: 100.0
-        });
-        return loadedTilesets;
-    }
-
-    async function loadTilesetInfo({url}) {
-        let totalLoaded = 0;
-        for (const jsonUrl of url) {
-            try {
-                const response = await fetch(jsonUrl);
-
-                if (!response.ok) {
-                    console.warn(`JSON 파일 로드 실패 (${response.status}): ${jsonUrl}`);
-                    continue;
-                }
-                const propertiesData = await response.json();
-                properties = { ...properties, ...propertiesData };
-                totalLoaded += Object.keys(propertiesData).length;
-
-            } catch (error) {
-                console.error(`JSON 로드 실패: ${jsonUrl}`, error);
-            }
-        }
-        console.log(`${totalLoaded}개 객체 로드 완료`);
-        return properties;
     }
 
     function initCesiumViewer(elementId){
@@ -299,6 +275,91 @@ var CesiumHandler = (function(){
         });
 
         return cesiumViewer;
+    }
+
+    async function applyModelConfig(config={}) {
+        const tasks = [];
+
+        // 3D Tileset 로딩
+        if(config.tilesetUrl) tasks.push(renderingAllTileset({ url: config.tilesetUrl }));
+
+        // 모델 정보 라벨 업데이트
+        if(config.info){
+            removeModelInfoLabel();
+            setModelInfoLabel(config.info);
+        }
+
+        // propertyUrls 업데이트
+        if (config.propertyUrls && config.propertyUrls.length) tasks.push(loadTilesetInfo({ url: config.propertyUrls }));
+        
+        // tasks 작업이 모두 끝나길 대기
+        // 하나라도 실패해도 전체 실패로 간주
+        return Promise.all(tasks);
+    }
+
+    async function updateModelConfig(config = {}) {
+        // 현재 currentConfig 업데이트
+        // 사용자가 리스트에서 어떤 모델을 선택 후 다시 적용
+        currentModelConfig  = {
+            ...currentModelConfig ,
+            ...config,
+            info: {
+            ...currentModelConfig .info,
+            ...(config.info || {}),
+            },
+        };
+        return applyModelConfig(currentModelConfig );
+    }
+
+    async function renderingAllTileset({url}) {
+
+        if(loaded_3Dtilesets.length > 0){
+            loaded_3Dtilesets.forEach(ts=>{
+                viewer.scene.primitives.remove(ts);
+            })
+        }
+        loaded_3Dtilesets = [];
+
+        if (!url) {
+            console.warn("url이 존재하지 않습니다.");
+            return [];
+        }
+
+        const tilesets = await loadAllTilesets(url);
+        loaded_3Dtilesets = tilesets;
+
+        // 해당 위치로 카메라 이동
+        unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
+        flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
+
+        if (currentModelConfig.info) {
+            removeModelInfoLabel();
+            setModelInfoLabel(currentModelConfig.info);
+        }
+
+        return tilesets;
+    }
+
+    async function loadTilesetInfo({url}) {
+        let totalLoaded = 0;
+        for (const jsonUrl of url) {
+            try {
+                const response = await fetch(jsonUrl);
+
+                if (!response.ok) {
+                    console.warn(`JSON 파일 로드 실패 (${response.status}): ${jsonUrl}`);
+                    continue;
+                }
+                const propertiesData = await response.json();
+                properties = { ...properties, ...propertiesData };
+                totalLoaded += Object.keys(propertiesData).length;
+
+            } catch (error) {
+                console.error(`JSON 로드 실패: ${jsonUrl}`, error);
+            }
+        }
+        console.log(`${totalLoaded}개 객체 로드 완료`);
+        return properties;
     }
 
     function createRoundBadgeCanvas({
@@ -381,8 +442,8 @@ var CesiumHandler = (function(){
         });
     }
 
-    // unionTilesetCenter( BoundingSphere ) 기준 수직라인 + 라벨 생성
-    function addCenterVerticalLabel(options = {}) {
+    //  BoundingSphere 기준 수직라인 + 라벨 생성
+    function setModelInfoLabel(options = {}) {
         if (!unionTilesetCenter || !viewer) return;
 
         const text        = options.text   || 'Untitled';
@@ -414,7 +475,7 @@ var CesiumHandler = (function(){
 
         // 수직 원통 라인
         viewer.entities.add({
-            name: 'unionCenterLine',
+            id: 'entity_line',
             position: cylinderPos,
             orientation: Cesium.Transforms.headingPitchRollQuaternion(
                 cylinderPos,
@@ -441,7 +502,6 @@ var CesiumHandler = (function(){
         }).then((badgeCanvas) => {
             viewer.entities.add({
                 id : 'entity_icon',
-                name: 'unionCenterBadge',
                 position: labelPos,
                 properties: {
                     title: `${text}`,
@@ -456,6 +516,14 @@ var CesiumHandler = (function(){
                 }
             });
         });
+    }
+
+    // 모델 정보 라벨 제거
+    function removeModelInfoLabel() {
+        const lineEntity  = viewer.entities.getById("entity_line");
+        const iconEntity = viewer.entities.getById("entity_icon");
+        if (lineEntity)  viewer.entities.remove(lineEntity);
+        if (iconEntity) viewer.entities.remove(iconEntity);
     }
 
     function updateInspectorToggleButton(model) {
@@ -473,146 +541,32 @@ var CesiumHandler = (function(){
         }
     }
 
+    function injectStyleOnce(id, cssText) {
+        if (!document.getElementById(id)) {
+            $('<style>', { id, text: cssText }).appendTo('head');
+        }
+    }
+
     function createInspectBox(){
-        
-        const $viewerRoot = $(viewer.container);
-        if (!$viewerRoot.length) return;
+        const $viewerContainer = $(viewer.container);
+        const $parent = $viewerContainer.parent();
 
-        const $parent = $viewerRoot.parent();
-        if (!$parent.length) return;
+        if (!$viewerContainer.length) return;
+        if (!$parent.length || $parent.hasClass('shell')) return;
 
-        if ($parent.hasClass('shell')) {
-            return;
-        }
-
-         if (!$('#dynamic-inspector').length) {
-            const css = `
-                /* =============================
-                * Inspector Layout 스타일
-                * ============================= */
-                .shell {
-                display: grid;
-                grid-template-columns: 1fr 360px; /* 왼쪽 viewer, 오른쪽 inspector */
-                width: 100%;
-                height: 100%;
-                }
-                .shell > * {
-                min-width: 0;
-                min-height: 0;
-                }
-                .shell.no-inspector {
-                grid-template-columns: 1fr; /* inspector 닫으면 viewer가 전체 사용 */
-                }
-
-                main {
-                position: relative;
-                height: 100%;
-                width: 100%;
-                }
-
-                /* Inspector 박스 (오른쪽) */
-                .inspector {
-                    background: #11161c;
-                    border-left: 1px solid #222a33;
-                    display: flex;
-                    flex-direction: column;
-                    height: 100%;
-                    overflow: hidden;
-                    padding: 1rem;
-                }
-                .inspector[hidden] {
-                display: none !important;
-                }
-
-                /* 상단 close 버튼 & 타이틀 */
-                .inspectorBaseBtn {
-                    font-size: 11px;
-                    padding: 3px 8px;
-                    margin: 0;
-                    cursor: pointer;
-                    border-radius: 12px;
-                    border: 1px solid #27313c;
-                    color: #e6edf3;
-                }
-               
-
-                /* key-value 영역 */
-                .inspect_list {
-                
-                padding: 10px 0;
-                border-bottom: 1px solid #222a33;
-                font-size: 11px;
-                }
-                .inspect_list:last-child {
-                border-bottom: 0;
-                }
-                .inspect_list .k {
-                color: #98a6b3;
-                margin-bottom: 5px;
-                }
-
-                @media (max-width: 1024px) {
-                    /* 전체 레이아웃: 세로 방향 flex 컨테이너로 변경 */
-                    .shell {
-                        display: flex;
-                        flex-direction: column; /* 위: main, 아래: inspector */
-                        width: 100%;
-                        height: 100%;
-                    }
-
-                    /* 윗부분(viewer 영역) 높이 비율 2 */
-                    .shell main {
-                        flex: 2 1 0;   /* 2 : 1 비율에서 '2' */
-                        min-height: 0; /* overflow 스크롤 깨짐 방지 */
-                    }
-
-                    /* 아랫부분(inspector 영역) – 높이 비율 1 */
-                    .shell .inspector {
-                        display: flex;         /* 기존 스타일 유지 + flex column */
-                        flex-direction: column;
-                        flex: 1 1 0;           /* 2 : 1 비율 '1' */
-                        min-height: 0;
-                        border-left: none;     /* 좌측 경계선 제거 */
-                        border-top: 1px solid #222a33; /* 위쪽에 경계선 */
-                    }
-
-                    /* 닫기 눌렀을 때 아래 pane만 감추는 처리 (기존 no-inspector 클래스와 연동) */
-                    .shell.no-inspector .inspector {
-                        display: none !important;
-                    }
-                }
-            `;
-
-            $('<style>',{ id: 'dynamic-inspector' }).text(css).appendTo('head');
-        }
+        injectStyleOnce(INSPECTOR_STYLE_ID, INSPECTOR_CSS);
 
         const $shell = $(`
             <div class="shell" id="shell">
             <main></main>
             </div>
         `);
-         $viewerRoot.before($shell);
+         $viewerContainer.before($shell);
 
         const $main = $shell.find('main');
-        $main.append($viewerRoot);
+        $main.append($viewerContainer);
 
-
-        const inspectorHtml = `
-            <aside class="inspector">
-                <div style="border-color:#222a33; display:flex; align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,0.2);">
-                    <h3 style="font-size:.875rem; margin:0; font-weight:600; color:white;">모델정보</h3>
-                    <button id="btnInspectorModelShow" class="inspectorBaseBtn cesium-button" disabled>숨김</button>
-                    <button class="inspectorBaseBtn cesium-button" id="btnInspectorClose">닫기</button>
-                </div>
-                <div id="inspector_list_container" style="flex:1; overflow:auto;">
-                    <div class="inspect_list" style = "text-align: center;">
-                        <div style="color:#e6edf3;">모델을 클릭해 주세요.</div>
-                    </div>
-                </div>
-            </aside>
-        `;
-
-        const $inspectorBox = $(inspectorHtml);
+        const $inspectorBox = $(INSPECTOR_HTML);
         $shell.append($inspectorBox);
 
         inspectorBoxEl = $inspectorBox[0];
@@ -741,27 +695,44 @@ var CesiumHandler = (function(){
         }
     }
 
-    function createCompass(){
-        var imgElement = createElement();
-        viewer.scene.postRender.addEventListener(()=>{
-            const heading = viewer.camera.heading;
-            imgElement.css("transform",`rotateZ(${heading}rad)`);
-        });
+    function createCompas(){
+        const $wrap = createElement();
+    const $svg = $wrap.find('svg');
 
-        imgElement.click(()=>{
-            return;
-            if(!Cesium.defined(iconEntity)) return;
-            viewer.zoomTo(opt.iconEntity,-90,1000);
-        });
+    // 회전 중심을 정중앙으로
+    $svg.css({
+        width: '100%',
+        height: '100%',
+        'transform-origin': '50% 50%',
+        'will-change': 'transform'
+    });
 
-        const renderContents = $(viewer.container);
-        renderContents.append(imgElement);
+    // 카메라 heading에 맞춰 회전
+    viewer.scene.postRender.addEventListener(() => {
+        const heading = viewer.camera.heading; // 라디안
+        // 일반적으로 나침반은 카메라 반대방향으로 돌려서 "북"이 항상 위로 보이게 함
+        $svg.css('transform', `rotateZ(${-heading}rad)`);
+    });
 
-        function createElement(){
-            const style = `style="position: absolute; top: 10px; right: 10px; z-index: 10000; width: 64px"`;
-            const img = $(`<img src="./js/compas.svg" ${style}/>`);
-            return img;
-        }
+    // 클릭 이벤트 (지금은 비활성)
+    $wrap.on('click', () => {
+        return;
+        // if (!Cesium.defined(iconEntity)) return;
+        // viewer.zoomTo(opt.iconEntity, -90, 1000);
+    });
+
+    const $renderContents = $(viewer.container);
+    $renderContents.append($wrap);
+
+    function createElement() {
+        const $div = $(`
+            <div class="hud-compass" 
+                 style="position:absolute; top:10px; right:10px; z-index:10000; width:64px; height:64px; pointer-events:auto;">
+                ${COMPASS_SVG}
+            </div>
+        `);
+        return $div;
+    }
     }
 
     function translucencyUpdate() {
@@ -878,372 +849,13 @@ var CesiumHandler = (function(){
         return union;
     }
 
-    function createInfoBox({container,onCamreraFree,onOrbitMode}) {
-        if (infoBoxRootEl) return; // 중복 생성 방지
-        const css = `
-                /* camerafree 도움말 */
-                .free-help { position:absolute; left:50%; transform:translateX(-50%); bottom:64px; padding:10px 12px; border-radius:10px; background:rgba(17,22,28,.95); color:#e6edf3; border:1px solid rgba(255,255,255,.08); box-shadow:0 10px 24px rgba(0,0,0,.45); z-index:5000; max-width:calc(100vw - 32px); font:11px system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif; }
-                .free-help h4 { margin:0 0 6px 0; font-size:14px; font-weight:700; color:#9ecbff; }
-                .free-help .row{ display:flex; gap:10px; margin:4px 0; }
-                .free-help kbd{ min-width:40px; padding:2px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#fff; font:600 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; text-align:center; }
-                #btn_cameraFreeMode.is-active {
-                    background:#ff7c1c !important;
-                    border-color:#ffd38a !important;
-                    color:#fff;
-                    position:relative;
-                    box-shadow:
-                        0 0 0 1px rgba(255,180,80,.45),
-                        0 0 16px rgba(255,140,40,.75);
-                    filter: brightness(1.03);
-                    animation: cameraFreeGlow 1.4s ease-in-out infinite;
-                }
-                @keyframes cameraFreeGlow {
-                    0% {
-                        box-shadow:
-                            0 0 0 0 rgba(255,180,80,.25),
-                            0 0 10px rgba(255,140,40,.45);
-                        filter: brightness(1.0);
-                    }
-                    50% {
-                        box-shadow:
-                            0 0 0 2px rgba(255,230,120,.7),
-                            0 0 24px rgba(255,160,40,.95);
-                        filter: brightness(1.12);
-                    }
-                    100% {
-                        box-shadow:
-                            0 0 0 0 rgba(255,180,80,.25),
-                            0 0 10px rgba(255,140,40,.45);
-                        filter: brightness(1.0);
-                    }
-                }
-                #btn_orbitMode.is-active {
-                    background:#ff7c1c !important;
-                    border-color:#ffd38a !important;
-                    color:#fff;
-                    position:relative;
-                    box-shadow:
-                        0 0 0 1px rgba(255,180,80,.45),
-                        0 0 16px rgba(255,140,40,.75);
-                    filter: brightness(1.03);
-                    animation: cameraFreeGlow 1.4s ease-in-out infinite;
-                }
+    function createInfoBox({container}) {
 
-                /* Alpha 행 레이아웃 */
-                .hud-alpha-row {
-                    display:flex;
-                    align-items:center;
-                    gap:4px;
-                    flex-wrap:wrap;
-                }
-                .hud-alpha-row span {
-                    flex:0 0 auto;
-                }
-                .hud-alpha-value {
-                    min-width:28px;
-                    text-align:right;
-                }
-                .hud-alpha-range {
-                    flex:1 1 auto;
-                    min-width:80px;
-                }
+        injectStyleOnce(HUD_STYLE_ID, HUD_CSS);
 
-                /* 모델 옵션 드롭다운 */
-                .hud-mode-wrap{
-                    position:relative;
-                }
-                .hud-mode-menu{
-                    position:absolute;
-                    top:0;
-                    left:100%;
-                    margin-left:4px;
-                    background:rgba(42,42,42,.7);
-                    border-radius:8px;
-                    padding:6px 8px;
-                    border:1px solid rgba(255,255,255,.1);
-                    box-shadow:0 8px 18px rgba(0,0,0,.45);
-                    display:none;
-                    flex-direction:column;
-                    gap:4px;
-                    min-width:120px;
-                    z-index:6000;
-                }
-                .hud-mode-wrap.is-open .hud-mode-menu{
-                    display:flex;
-                }
-                .hud-mode-wrap.is-open #hud-mode-main{
-                    background:#2f80ff !important;
-                    border-color:#2f80ff !important;
-                    color:#fff;
-                }
-                .hud-mode-item{
-                    width:100%;
-                    margin:0;
-                    font-size:11px;
-                    text-align:left;
-                    white-space:nowrap;
-                    border: 0px;
-                }
-                .cesium-performanceDisplay-defaultContainer {
-                    top: 85px !important;
-                }
-                
-
-                /* 기본: 패널 위치 */
-                #hud-info-panel {
-                    position: absolute;
-                    top: 8px;
-                    left: 8px;
-                    z-index: 1;
-                    font-size: 11px;
-                    color: #e6edf3;
-                }
-
-                #hud-info-panel .hud-info-body {
-                    display: block;
-                }
-
-
-                /* 좁은 화면용 HUD */
-                @media (max-width: 1024px) {
-                    /* 카메라 영역 전체를 가로로 꽉 채우기 */
-                    #hud-info-panel .hud-mode-wrap {
-                        width: 100%;
-                    }
-
-                    #hud-info-panel {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: flex-start;
-                        max-width: calc(100% - 16px);
-                    }
-
-                    /* 토글 버튼 노출 */
-                    #hud-info-toggle {
-                        display: inline-flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 3px 8px;
-                        margin-bottom: 4px;
-                        border-radius: 999px;
-                        border: 1px solid rgba(255,255,255,0.4);
-                        background: rgba(0,0,0,0.7);
-                        color: #e6edf3;
-                        font-size: 10px;
-                        cursor: pointer;
-                    }
-
-                    /* 드롭다운 패널 기본: 접혀 있음 */
-                    #hud-info-panel .hud-info-body {
-                        position: relative;
-                        margin-top: 4px;
-                        background: rgba(42,42,42,0.9);
-                        border-radius: 8px;
-                        padding: 6px 10px;
-                        box-shadow: 0 8px 18px rgba(0,0,0,0.55);
-
-                        max-height: 0;
-                        overflow: hidden;
-                        opacity: 0;
-                        transform-origin: top left;
-                        transform: translateY(-4px);
-                        transition:
-                        max-height 0.18s ease,
-                        opacity 0.18s ease,
-                        transform 0.18s ease;
-                    }
-
-                    /* is-open 클래스일 때만 펼쳐지도록 */
-                    #hud-info-panel.is-open .hud-info-body {
-                        max-height: 400px;           /* 내용 높이보다 조금 크게 잡기 */
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-
-                    #hud-info-panel .hud-mode-menu {
-                        position: static;      /* absolute + left:100% 제거 효과 */
-                        margin-left: 0;
-                        margin-top: 4px;
-
-                        width: 100%;
-                        box-shadow: 0 6px 14px rgba(0,0,0,0.5);
-                    }
-                }
-
-                /* 큰 화면용 HUD */
-                @media (min-width: 1025px) {
-                    /* 토글 버튼은 안 보이게 */
-                    #hud-info-toggle {
-                        display: none;
-                    }
-
-                    /* 큰 화면에서는 항상 body 보이도록 강제 */
-                    #hud-info-panel .hud-info-body {
-                        display: block !important;
-                        position: static;
-                        max-height: none;
-                        opacity: 1;
-                        transform: none;
-                    }
-                }
-        `;
-
-        const style = document.createElement('style');
-        style.id = 'dynamic-camera-free';
-        style.textContent = css;
-        document.head.appendChild(style);
-            
-        infoBoxRootEl = document.createElement('div');
-        infoBoxRootEl.id = 'hud-info-panel';
-        infoBoxRootEl.style.cssText = `
-            position:absolute; top:8px; left:8px; z-index:1; font-size:11px;
-            width: 170px;          /* 폭 고정 */
-            max-width: 170px;    
-            color:#e6edf3; pointer-events:auto;
-        `;
-        infoBoxRootEl.innerHTML = `
-            <button id="hud-info-toggle" type="button" class="cesium-button">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide size-5 lucide-list-filter-icon lucide-list-filter size-5"><path d="M3 6h18"></path><path d="M7 12h10"></path><path d="M10 18h4"></path></svg>
-            </button>
-            <div class="hud-info-body">
-                <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
-                    경도 : <span id="hud-lon"></span><br/>
-                </div>
-                <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
-                    위도 : <span id="hud-lat"></span><br/>
-                </div>
-                <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">     
-                    높이 : <span id="hud-height"></span>
-                </div>
-                <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
-                    Zoom Level : <span id="hud-zoom">0m</span>
-                </div>
-                <div class="hud-mode-wrap" style="margin-bottom:6px;">
-                    <!-- 메인 버튼: 클릭하면 오른쪽에 리스트 열림 -->
-                    <button
-                    id="hud-mode-main"
-                    type="button"
-                    class="cesium-button"
-                    style="width:100%;margin:0;text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">
-                    카메라 ▸
-                    </button>
-                    <!-- 우측에 뜨는 리스트 -->
-                    <div class="hud-mode-menu">
-                        <button
-                                id="hud-topdown"
-                                type="button"
-                                class="cesium-button hud-mode-item" data-view="top">
-                                top
-                        </button>
-                        <button
-                                id="hud-leftHalfDown"
-                                type="button"
-                                class="cesium-button hud-mode-item" data-view="left">
-                                left
-                        </button>
-                        <button
-                                id="hud-rightHalfDown"
-                                type="button"
-                                class="cesium-button hud-mode-item" data-view="right">
-                                right
-                        </button>
-                    </div>
-                </div>
-                <div style="border-radius:8px; margin-bottom:6px;">
-                    <button id="btn_cameraFreeMode" type="button" class="cesium-button" style="width:100%;margin:0;text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">
-                    탐색모드
-                    </button>
-                </div>
-
-
-                <div style="border-radius:8px; margin-bottom:6px;">
-                    <button id="btn_orbitMode" type="button" class="cesium-button" style="width:100%;margin:0;text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">
-                    회전모드
-                    </button>
-                </div>
-
-                <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:none;">
-                    <!-- 상단 타이틀 -->
-                    <div style="font-weight:600; margin-bottom:0.5rem;">
-                        지하시설물 특화
-                    </div>
-                    <!-- 하위 옵션 전체 래퍼 -->
-                    <div style="margin-left:4px; font-size:11px;">
-
-                        <!-- 상위 옵션: Translucency (접었다 펼치는 헤더) -->
-                        <div class="hud-trans-header"
-                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; cursor:pointer;">
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <!-- + / - 토글 아이콘 -->
-                                <span class="hud-trans-toggle"
-                                    style="display:inline-block; width:14px; text-align:center;">−</span>
-                                <span>Translucency</span>
-                            </div>
-                            <input
-                                type="checkbox"
-                                id="hud-translucency"
-                                style="accent-color:#ffcd00; margin-left:8px;"
-                                checked
-                            />
-                        </div>
-
-                        <!-- Translucency 하위 옵션 그룹 -->
-                        <div class="hud-trans-body"
-                            style="margin-left:16px; margin-top:2px; font-size:0.9em;">
-                            <!-- Fade by distance -->
-                            <label style="display:block; margin-bottom:6px;">
-                                Fade by distance
-                                <input
-                                    type="checkbox"
-                                    id="hud-fadeByDistance"
-                                    style="accent-color:#ffcd00"
-                                    checked
-                                />
-                            </label>
-
-                            <!-- Alpha -->
-                            <div class="hud-alpha-row"
-                                style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                                <span style="min-width:40px;">Alpha</span>
-                                <span id="hud-alpha-value"
-                                    class="hud-alpha-value"
-                                    style="font-size:0.85em; opacity:0.8;">0.5</span>
-                                <input
-                                    id="hud-alpha-range"
-                                    type="range"
-                                    min="0.0"
-                                    max="1.0"
-                                    step="0.1"
-                                    data-bind="value: alpha, valueUpdate: 'input'"
-                                    class="hud-alpha-range"
-                                    style="appearance:none; background-color:#ffffff57; accent-color:#ffcd00; border-radius:10px; cursor:pointer; height:8px;"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- 같은 레벨의 항목: 모델만 보기 -->
-                        <div class="hud-only-model-row"
-                            style="margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between;">
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <span style="display:inline-block; width:14px;"></span>
-                                <span>View 3D Only</span>
-                            </div>
-                            <input type="checkbox" id="hud-only-model" style="accent-color:#ffcd00"/>
-                        </div>
-                        <div class="hud-only-model-row"
-                            style="margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between;">
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <span style="display:inline-block; width:14px;"></span>
-                                <span>Performance</span>
-                            </div>
-                            <input type="checkbox" id="hud-performance" style="accent-color:#ffcd00"/>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        `;
-        container.appendChild(infoBoxRootEl);
+        const $root = $(HUD_HTML);
+        const infoBoxRootEl = $root[0];
+        container.appendChild($root[0]);
 
         infoBoxEls.lon   = infoBoxRootEl.querySelector('#hud-lon');
         infoBoxEls.lat   = infoBoxRootEl.querySelector('#hud-lat');
@@ -1252,10 +864,9 @@ var CesiumHandler = (function(){
         
         const $cameraFree  = $('#btn_cameraFreeMode');
         const $modeWrap    = $(infoBoxRootEl).find('.hud-mode-wrap');
-        const $modeMainBtn = $modeWrap.find('#hud-mode-main');
-        const $modeMenu    = $modeWrap.find('.hud-mode-menu');
+        const $hcg         = $modeWrap.find('#hud-camera-group');
+        const $hcm         = $modeWrap.find('.hud-cg-menu');
 
-        const $root        = $(infoBoxRootEl);
         const $transHeader = $root.find('.hud-trans-header');
         const $transBody   = $root.find('.hud-trans-body');
         const $toggleIcon  = $root.find('.hud-trans-toggle');
@@ -1263,7 +874,6 @@ var CesiumHandler = (function(){
         const $performance = $(infoBoxRootEl).find('#hud-performance');
 
         const $hudToggle = $root.find('#hud-info-toggle');
-
         const $orbitBtn   = $root.find('#btn_orbitMode');
 
         // 초기 상태: 펼쳐져 있고 아이콘은 "−"
@@ -1315,50 +925,52 @@ var CesiumHandler = (function(){
         // 모델 환경 투명도 조절
         bindTranslucencyControls();
 
-        // 메인 버튼 클릭 시 열고/닫기
-        $modeMainBtn.on('click', function (e) {
+        // 카메라 그룹 버튼 클릭 시 열고/닫기
+        $hcg.on('click', function (e) {
             e.stopPropagation();
             $modeWrap.toggleClass('is-open');
         });
 
-        // 메뉴 안에서 항목 클릭 처리 (수직보기 / 빈 칸)
-        $modeMenu.on('click', 'button', function (e) {
-            //const id = this.id;
+        // 카메라 그룹 안에서 항목 클릭 처리 (수직, 좌측45도, 우측45도)
+        $hcm.on('click', 'button', function (e) {
             flyToTilesetsWithPreset(viewer, unionTilesetCenter, this.dataset.view, 0.8, 600);
         });
 
-         $cameraFree.on('click', () => {
+        // 탐색모드 버튼
+        $cameraFree.on('click', () => {
             //alert('해당 서비스 준비중입니다.');
            // return;
-            const isActive = $cameraFree.hasClass('is-active');
-            if (isActive) {
-                // 비활성
-                $cameraFree.removeClass('is-active');
-                onCamreraFree?.(false);
-            } else {
-                //활성
-                $cameraFree.removeClass('is-active'); 
-                $cameraFree.addClass('is-active');
-                onCamreraFree?.(true);
-                $orbitBtn.removeClass('is-active');
-            }
+
+           // 이미 탐색모드면 NORMAL로, 아니면 CAMERA_FREE로
+            const next = (currentMode === Mode.CAMERA_FREE)
+                ? Mode.NORMAL
+                : Mode.CAMERA_FREE;
+            setMode(next);
+             syncModeButtons();
         });
 
+        // 회전모드 버튼
         $orbitBtn.on('click', () => {
-            if (!unionTilesetCenter) {
+            // ORBIT 켜려는데 center 없으면 경고
+            if (currentMode !== Mode.ORBIT && !unionTilesetCenter) {
                 alert('타일셋이 아직 로드되지 않았습니다.');
                 return;
             }
-            const isActive = $orbitBtn.hasClass('is-active');
-            if(isActive){
-                $orbitBtn.removeClass('is-active');
-                onOrbitMode?.(false);
-            }else{
-                $orbitBtn.addClass('is-active');
-                onOrbitMode?.(true);
-                $cameraFree.removeClass('is-active');
-            }
+            const next = (currentMode === Mode.ORBIT)
+                ? Mode.NORMAL
+                : Mode.ORBIT;
+            setMode(next);
+            syncModeButtons();
         });
+
+        // 모드 변경 시 버튼 상태 동기화
+        const syncModeButtons = () => {
+            const isFree  = currentMode === Mode.CAMERA_FREE;
+            const isOrbit = currentMode === Mode.ORBIT;
+
+            $cameraFree.toggleClass('is-active', isFree);
+            $orbitBtn.toggleClass('is-active', isOrbit);
+        };
 
         function bindTranslucencyControls() {
             const $chkTrans    = $root.find('#hud-translucency');
@@ -1422,13 +1034,11 @@ var CesiumHandler = (function(){
         if (infoBoxEnabled) return;
         infoBoxEnabled = true;
         if (handler) handler.setInputAction(onMouseMove, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-        //infoBoxRootEl.style.display = 'block';
     }
 
     function infoBoxDisable() {
         infoBoxEnabled = false;
         if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-        //infoBoxRootEl.style.display = 'none';
     }
 
     function applyModelHighlight(state, model, color, blendAmount) {
@@ -1683,11 +1293,8 @@ var CesiumHandler = (function(){
 
     return {
         init,
-        setMode,
-        Mode
+        updateModelConfig
     };
 })();
 
 export default CesiumHandler;
-
-

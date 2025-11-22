@@ -1,14 +1,21 @@
 {
   "name": "gis-3d-engine",
   "version": "1.0.0",
+  "type": "module",
   "description": "Cesium 3D Tiles Viewer",
+  "main": "dist/cesium-viewer.umd.js",
+  "module": "dist/cesium-viewer.esm.js", 
   "scripts": {
-    "start": "live-server --host=localhost --port=8000 --open=test.html"
+    "start": "live-server --host=localhost --port=8000 --open=test.html",
+    "build": "rollup -c"
   },
   "dependencies": {
     "cesium": "^1.134.1"
   },
   "devDependencies": {
-    "live-server": "^1.2.2"
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "live-server": "^1.2.2",
+    "rollup": "^4.53.3"
   }
 }

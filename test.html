@@ -33,13 +33,30 @@ html, body {
   <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
    <script src="./cesium/Cesium.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-
-
-
-  <script src="./js/index.js" type="module"></script>
+  <script src="/dist/git-viewer.umd.js"></script>
 </head>
 <body>
 <div id="viewerRoot"></div>
     
 </body>
+
+<script>
+  document.addEventListener("DOMContentLoaded", async function () {
+      try {
+          const app = await GIT.CesiumViewer("#viewerRoot", {
+            tilesetUrl: "http://175.116.181.151:29090/3d-tileset/02_draco_glb/tileset.json",
+            propertyUrls: ["http://175.116.181.151:29090/3d-tileset/properties/combined_properties.json"],
+            info: {
+              text: "서울시 공동구입니다.",
+              iconSrc: "./src/under.png",
+              length: 100,
+            },
+          });
+      } catch (err) {
+        console.error("초기화 실패", err);
+      }
+    });
+
+    
+</script>
 </html>

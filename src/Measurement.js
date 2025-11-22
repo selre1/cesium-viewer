@@ -22,13 +22,6 @@ export function Measurement({cesiumViewer}){
         handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     }
 
-    function destroyHandler() {
-        if (handler) {
-            handler.destroy();
-            handler = null;
-        }
-    }
-
     function resetSession() {
         // 진행 중 엔티티 제거
         session.graphics.forEach(function (g) { viewer.entities.remove(g); });
@@ -587,7 +580,7 @@ export function Measurement({cesiumViewer}){
             hideMouseLabel(); 
             setDrawingCursor(false); 
             mode=undefined;
-             $(".tool-root").find('.tool').removeClass('is-active');
+             //$(".tool-root").find('.tool').removeClass('is-active');
     }
 
     function removeAll() {
@@ -696,8 +689,10 @@ export function Measurement({cesiumViewer}){
                     box-shadow: 0 0 3px #fff;
                 }
                 .tool.is-active{
-                    background: #6565652e;
                     color: #fff;
+                    fill: none;
+                    background: transparent;
+                    box-shadow: 0 0 3px #fff;
                 }
 
                 .tool-panel-footer{
@@ -850,7 +845,6 @@ export function Measurement({cesiumViewer}){
             }
             function showMountToolBar(){
                 $rootWrap.css("display", "flex");
-                closeAllPanels();
             }
 
             $groupMeasure.on('click', () => {

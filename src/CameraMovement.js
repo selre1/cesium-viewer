@@ -72,7 +72,7 @@ export function moveNormalDirection(viewer, movement, model){
             return;
         }
 
-        // 모델 전체 반지름 (건물 크기)
+        // 모델 전체 반지름
         const rawRadius = (model && model.boundingSphere)
             ? model.boundingSphere.radius
             : 10.0; // fallback
@@ -85,12 +85,12 @@ export function moveNormalDirection(viewer, movement, model){
         let fitDistance = (rawRadius / Math.sin(fovy / 2.0)) * 1.1; // 여유 10%
 
         // 계단 같이 내부 요소를 눌렀을 때
-        //     → 건물 전체를 보기 위해 뒤로 쭉 빠지지 않도록
-        //     → 지금보다 더 멀리는 가지 않게 제한
+        //    건물 전체를 보기 위해 뒤로 쭉 빠지지 않도록
+        //     지금보다 더 멀리는 가지 않게 제한
         fitDistance = Math.min(fitDistance, currentDistance);
 
         // 너무 멀거나, 너무 코앞까지 붙지 않게 클램프
-        //    - dMin / dMax => 사용성에 따라 조절 (단위: meter 정도 느낌)
+        //  dMin / dMax => 사용성에 따라 조절 (단위: meter 정도)
         const dMin = 3.0;    // 실내 볼 때 최소 거리
         const dMax = 100.0;  // 건물 전체 볼 때도 이 이상은 안 멀어지게
         fitDistance = Cesium.Math.clamp(fitDistance, dMin, dMax);
@@ -204,7 +204,7 @@ export function flyDirectionStayFitModel(viewer, model){
             new Cesium.Cartesian3()
         );
 
-        // up 벡터는 지표면 법선 기반으로 안정적으로 구성
+        // up 벡터는 지표면 법선 기반 구성
         const ellipsoid = scene.globe.ellipsoid;
         const worldUp   = ellipsoid.geodeticSurfaceNormal(
             center,
@@ -295,7 +295,10 @@ export function flyToTilesetsWithPreset(
     alert('해당 서비스 준비중입니다.');
     return;
   }
-  if (!union) return;
+  if (!union) {
+    alert('이동할 대상이 없습니다.');
+    return;
+  }
 
   const preset = VIEW_PRESETS[presetKey] || VIEW_PRESETS.top;
 

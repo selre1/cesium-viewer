@@ -181,7 +181,6 @@ var CesiumHandler = (function(){
 
         createInfoBox({container: viewer.container});
         infoBoxEnable();
-        
 
         toolBarApi = measurement.mountToolBar({
             container: viewer.container,
@@ -199,7 +198,6 @@ var CesiumHandler = (function(){
         createInspectBox();
         inspectBoxEnable();
 
-
         currentModelConfig = {
             tilesetUrl: tilesetUrl,
             propertyUrls: propertyUrls,
@@ -210,7 +208,7 @@ var CesiumHandler = (function(){
 
         setMode(Mode.NORMAL);
         
-        return {viewer,Mode};
+        return viewer;
     }
 
     function initCesiumViewer(elementId){
@@ -220,8 +218,11 @@ var CesiumHandler = (function(){
     
         const cesiumViewer = new Cesium.Viewer(elementId, DefaultOption);
         //cesiumViewer.scene.fxaa = false;
-        cesiumViewer.scene.globe.depthTestAgainstTerrain = true;
-        cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+        cesiumViewer.scene.sun.show  = false;   // 태양
+        cesiumViewer.scene.moon.show = false;   // 달
+        
+        cesiumViewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
+        cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // 카메라 충돌 감지 비활성화(지하를 탐색하기 위함)
         cesiumViewer.scene.globe.translucency.frontFaceAlphaByDistance = new Cesium.NearFarScalar( 400.0, 0.0, 2000.0, 1.0);
        //cesiumViewer.resolutionScale = 0.75; // 해상도 낮추기
         cesiumViewer.scene.globe.baseColor = new Cesium.Color(0, 0, 0, 1);
@@ -242,12 +243,13 @@ var CesiumHandler = (function(){
         controller.minimumZoomDistance = 2.0;    // 지하 모델 근접 최소 거리
         controller.maximumZoomDistance = 300.0;  // 이 이상은 멀어지지 않게
 
-        // 카메라 관성(“밀려나가는” 느낌) 줄이기
+        // 카메라 관성(밀려나가는 느낌) 줄이기
         const cam = cesiumViewer.camera;
         cam.inertiaSpin      = 0.2;  // 회전 관성 (기본 0.9 근처)
         cam.inertiaTranslate = 0.4;  // 이동 관성
         cam.inertiaZoom      = 0.4;  // 줌 관성
 
+        // 모델 중앙 라벨 오버레이 위치 유지하기 위함
         cesiumViewer.scene.preRender.addEventListener(function () {
             if (!entityOverlayEl || entityOverlayEl.style.display === 'none') return;
 
@@ -281,7 +283,15 @@ var CesiumHandler = (function(){
         const tasks = [];
 
         // 3D Tileset 로딩
-        if(config.tilesetUrl) tasks.push(renderingAllTileset({ url: config.tilesetUrl }));
+        if(config.tilesetUrl) {
+            const tilesets = await renderingAllTileset({ url: config.tilesetUrl });
+
+            // 해당 위치로 카메라 이동
+            unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
+
+            tasks.push(tilesets);
+        }
 
         // 모델 정보 라벨 업데이트
         if(config.info){
@@ -327,15 +337,6 @@ var CesiumHandler = (function(){
 
         const tilesets = await loadAllTilesets(url);
         loaded_3Dtilesets = tilesets;
-
-        // 해당 위치로 카메라 이동
-        unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
-        flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
-
-        if (currentModelConfig.info) {
-            removeModelInfoLabel();
-            setModelInfoLabel(currentModelConfig.info);
-        }
 
         return tilesets;
     }
@@ -669,6 +670,7 @@ var CesiumHandler = (function(){
             if (handler) handler.setInputAction(onMouseLeftClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
             
     }
+
     function inspectBoxDisable(){
             inspectorBoxEnabled = false;
             if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -1271,7 +1273,7 @@ var CesiumHandler = (function(){
                 inspectorLists.innerHTML = `
                     <div class="inspect_list">
                         <div class="k">info</div>
-                        <div style="color:#e6edf3;">속성이 없습니다.</div>
+                        <div style="color:#cccccc;">속성이 없습니다.</div>
                     </div>
                 `;
                 return;
@@ -1283,7 +1285,7 @@ var CesiumHandler = (function(){
                 html += `
                     <div class="inspect_list">
                         <div class="k">${key}</div>
-                        <div style="color:#e6edf3;">${value}</div>
+                        <div style="color:#cccccc;">${value}</div>
                     </div>
                 `;
             });

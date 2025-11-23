@@ -187,13 +187,11 @@ export const HUD_CSS = `
                     min-width:120px;
                     z-index:6000;
                 }
+
                 .hud-mode-wrap.is-open .hud-cg-menu{
                     display:flex;
                 }
-                .hud-mode-wrap.is-open #hud-camera-group{
-                    background:#4b4b4b !important;
-                    color:#fff;
-                }
+                
                 .hud-cg-item{
                     width:100%;
                     margin:0;
@@ -202,7 +200,9 @@ export const HUD_CSS = `
                     white-space:nowrap;
                     border: 0px;
                     text-align: center;
+                    background: transparent;
                 }
+
                 .cesium-performanceDisplay-defaultContainer {
                     top: 85px !important;
                 }
@@ -255,7 +255,7 @@ export const HUD_CSS = `
 
                     /* is-open 클래스일 때만 펼쳐지도록 */
                     #hud-info-panel.is-open .hud-info-body {
-                        max-height: 400px;           /* 내용 높이보다 조금 크게 잡기 */
+                        max-height: 100%;           /* 내용 높이보다 조금 크게 잡기 */
                         opacity: 1;
                         transform: translateY(0);
                     }
@@ -286,6 +286,64 @@ export const HUD_CSS = `
                         transform: none;
                     }
                 }
+
+                /* 카메라 모드 그룹 컨테이너 */
+                .hud-mode-group {
+                    border-radius: 8px;
+                }
+
+                /* 버튼 래퍼: 살짝 어두운 바탕 + 라운드 */
+                .hud-mode-buttons {
+                    display: flex;
+                    gap: 2px;
+                    padding: 2px;
+                    border-radius: 8px;
+                    background: rgb(20 26 34 / 66%);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                }
+
+                /* 개별 버튼: 기본 상태 */
+                .hud-mode-btn {
+                    flex: 1;
+                    margin: 0 !important;
+                    border-radius: 6px;
+                    border: none;
+                    background: transparent;
+                    color: #ffffffff;
+                    font-size: 11px;
+                    padding: 4px 0;
+                    transition: background 0.18s ease, color 0.18s ease,
+                                box-shadow 0.18s ease, transform 0.08s ease;
+                }
+
+                /* 활성 상태: 라디오에서 선택된 것처럼 */
+                .hud-mode-btn.is-active {
+                    background: #ff7c1c;
+                    color: #ffffff;
+                    box-shadow:
+                        0 0 0 1px rgba(255, 180, 80, 0.55),
+                        0 0 10px rgba(255, 140, 40, 0.75);
+                    transform: translateY(0);
+                }
+
+                /*  hover 공통 스타일 */
+                #hud-info-panel .cesium-button:hover {
+                    background: rgba(47, 128, 255, 0.18);
+                    color: #f5f7fb;
+                }   
+
+                /* HUD 안의 모든 글씨 공통 스타일 */
+                #hud-info-panel,
+                #hud-info-panel * {
+                    color: #ffffff;
+                    text-shadow:
+                    1px 1px 0 #000,
+                    -1px -1px 0 #000,
+                    1px -1px 0 #000,
+                    -1px 1px 0 #000,
+                    1px 1px 0 #000;
+                    font-family: Arial, Helvetica, sans-serif;
+                }
 `;
 
 export const HUD_HTML = `
@@ -298,22 +356,22 @@ export const HUD_HTML = `
         </svg>
     </button>
     <div class="hud-info-body">
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         경도 : <span id="hud-lon"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         위도 : <span id="hud-lat"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         높이 : <span id="hud-height"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         Zoom Level : <span id="hud-zoom">0m</span>
         </div>
 
         <!-- 카메라 그룹 -->
-        <div class="hud-mode-wrap" style="margin-bottom:6px;">
-        <button id="hud-camera-group" type="button" class="cesium-button" style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
+        <div class="hud-mode-wrap" style="margin-bottom:6px; background: rgb(20 26 34 / 66%); border-radius: 8px;">
+        <button id="hud-camera-group" type="button" class="cesium-button" style="width:100%;margin:0;background: transparent; border-radius: 8px;">
             카메라 ▸
         </button>
 
@@ -323,31 +381,20 @@ export const HUD_HTML = `
             <button type="button" class="cesium-button hud-cg-item" data-view="right" id="hud-rightHalfDown">right</button>
         </div>
         </div>
-
-        <!-- 탐색 / 회전 모드 -->
-        <div style="border-radius:8px; margin-bottom:6px;">
-        <button id="btn_cameraFreeMode" type="button" class="cesium-button"
-            style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
-            <span class="line-top"></span>
-            <span class="line-right"></span>
-            <span class="line-bottom"></span>
-            <span class="line-left"></span>
-            탐색모드
-        </button>
-        </div>
-        <div style="border-radius:8px; margin-bottom:6px;">
-        <button id="btn_orbitMode" type="button" class="cesium-button"
-            style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
-            <span class="line-top"></span>
-            <span class="line-right"></span>
-            <span class="line-bottom"></span>
-            <span class="line-left"></span>
-            회전모드
-        </button>
+        <!-- 카메라 모드 토글 버튼 그룹 -->
+        <div class="hud-mode-group" style="margin-bottom:6px;">
+            <div class="hud-mode-buttons" role="radiogroup">
+                <button id="btn_cameraFreeMode" type="button" class="cesium-button hud-mode-btn" role="radio" aria-checked="true" >
+                탐색
+                </button>
+                <button id="btn_orbitMode" type="button" class="cesium-button hud-mode-btn" role="radio" aria-checked="false">
+                회전
+                </button>
+            </div>
         </div>
 
         <!-- 지하시설물 특화 블럭 -->
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:block;">
+        <div style="background: rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:block;">
         <!-- 상단 타이틀 -->
             <div style="font-weight:600; margin-bottom:0.5rem;">
                 지하시설물 특화
@@ -495,8 +542,25 @@ export const INSPECTOR_CSS = `
     }
 
     .inspect_list .k {
-        color: #98a6b3;
+        color: #ffffffff;
         margin-bottom: 5px;
+    }
+
+    .inspector button:hover {
+      background: rgba(47, 128, 255, 0.18);
+      color: #f5f7fb;
+    }
+
+    .inspector,
+    .inspector * {
+        color: #ffffff;
+        text-shadow:
+          1px 1px 0 #000,
+          -1px -1px 0 #000,
+          1px -1px 0 #000,
+          -1px 1px 0 #000,
+          1px 1px 0 #000;
+        font-family: Arial, Helvetica, sans-serif;
     }
 
     @media (max-width: 1024px) {

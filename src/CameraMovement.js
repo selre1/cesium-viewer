@@ -296,7 +296,6 @@ export function flyToTilesetsWithPreset(
     return;
   }
   if (!union) {
-    alert('이동할 대상이 없습니다.');
     return;
   }
 

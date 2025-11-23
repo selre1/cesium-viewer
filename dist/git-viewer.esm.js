@@ -187,13 +187,11 @@ const HUD_CSS = `
                     min-width:120px;
                     z-index:6000;
                 }
+
                 .hud-mode-wrap.is-open .hud-cg-menu{
                     display:flex;
                 }
-                .hud-mode-wrap.is-open #hud-camera-group{
-                    background:#4b4b4b !important;
-                    color:#fff;
-                }
+                
                 .hud-cg-item{
                     width:100%;
                     margin:0;
@@ -202,7 +200,9 @@ const HUD_CSS = `
                     white-space:nowrap;
                     border: 0px;
                     text-align: center;
+                    background: transparent;
                 }
+
                 .cesium-performanceDisplay-defaultContainer {
                     top: 85px !important;
                 }
@@ -255,7 +255,7 @@ const HUD_CSS = `
 
                     /* is-open 클래스일 때만 펼쳐지도록 */
                     #hud-info-panel.is-open .hud-info-body {
-                        max-height: 400px;           /* 내용 높이보다 조금 크게 잡기 */
+                        max-height: 100%;           /* 내용 높이보다 조금 크게 잡기 */
                         opacity: 1;
                         transform: translateY(0);
                     }
@@ -286,6 +286,64 @@ const HUD_CSS = `
                         transform: none;
                     }
                 }
+
+                /* 카메라 모드 그룹 컨테이너 */
+                .hud-mode-group {
+                    border-radius: 8px;
+                }
+
+                /* 버튼 래퍼: 살짝 어두운 바탕 + 라운드 */
+                .hud-mode-buttons {
+                    display: flex;
+                    gap: 2px;
+                    padding: 2px;
+                    border-radius: 8px;
+                    background: rgb(20 26 34 / 66%);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                }
+
+                /* 개별 버튼: 기본 상태 */
+                .hud-mode-btn {
+                    flex: 1;
+                    margin: 0 !important;
+                    border-radius: 6px;
+                    border: none;
+                    background: transparent;
+                    color: #ffffffff;
+                    font-size: 11px;
+                    padding: 4px 0;
+                    transition: background 0.18s ease, color 0.18s ease,
+                                box-shadow 0.18s ease, transform 0.08s ease;
+                }
+
+                /* 활성 상태: 라디오에서 선택된 것처럼 */
+                .hud-mode-btn.is-active {
+                    background: #ff7c1c;
+                    color: #ffffff;
+                    box-shadow:
+                        0 0 0 1px rgba(255, 180, 80, 0.55),
+                        0 0 10px rgba(255, 140, 40, 0.75);
+                    transform: translateY(0);
+                }
+
+                /*  hover 공통 스타일 */
+                #hud-info-panel .cesium-button:hover {
+                    background: rgba(47, 128, 255, 0.18);
+                    color: #f5f7fb;
+                }   
+
+                /* HUD 안의 모든 글씨 공통 스타일 */
+                #hud-info-panel,
+                #hud-info-panel * {
+                    color: #ffffff;
+                    text-shadow:
+                    1px 1px 0 #000,
+                    -1px -1px 0 #000,
+                    1px -1px 0 #000,
+                    -1px 1px 0 #000,
+                    1px 1px 0 #000;
+                    font-family: Arial, Helvetica, sans-serif;
+                }
 `;
 
 const HUD_HTML = `
@@ -298,22 +356,22 @@ const HUD_HTML = `
         </svg>
     </button>
     <div class="hud-info-body">
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         경도 : <span id="hud-lon"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         위도 : <span id="hud-lat"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         높이 : <span id="hud-height"></span>
         </div>
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
+        <div style="background:rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px;">
         Zoom Level : <span id="hud-zoom">0m</span>
         </div>
 
         <!-- 카메라 그룹 -->
-        <div class="hud-mode-wrap" style="margin-bottom:6px;">
-        <button id="hud-camera-group" type="button" class="cesium-button" style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
+        <div class="hud-mode-wrap" style="margin-bottom:6px; background: rgb(20 26 34 / 66%); border-radius: 8px;">
+        <button id="hud-camera-group" type="button" class="cesium-button" style="width:100%;margin:0;background: transparent; border-radius: 8px;">
             카메라 ▸
         </button>
 
@@ -323,31 +381,20 @@ const HUD_HTML = `
             <button type="button" class="cesium-button hud-cg-item" data-view="right" id="hud-rightHalfDown">right</button>
         </div>
         </div>
-
-        <!-- 탐색 / 회전 모드 -->
-        <div style="border-radius:8px; margin-bottom:6px;">
-        <button id="btn_cameraFreeMode" type="button" class="cesium-button"
-            style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
-            <span class="line-top"></span>
-            <span class="line-right"></span>
-            <span class="line-bottom"></span>
-            <span class="line-left"></span>
-            탐색모드
-        </button>
-        </div>
-        <div style="border-radius:8px; margin-bottom:6px;">
-        <button id="btn_orbitMode" type="button" class="cesium-button"
-            style="width:100%;margin:0;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;">
-            <span class="line-top"></span>
-            <span class="line-right"></span>
-            <span class="line-bottom"></span>
-            <span class="line-left"></span>
-            회전모드
-        </button>
+        <!-- 카메라 모드 토글 버튼 그룹 -->
+        <div class="hud-mode-group" style="margin-bottom:6px;">
+            <div class="hud-mode-buttons" role="radiogroup">
+                <button id="btn_cameraFreeMode" type="button" class="cesium-button hud-mode-btn" role="radio" aria-checked="true" >
+                탐색
+                </button>
+                <button id="btn_orbitMode" type="button" class="cesium-button hud-mode-btn" role="radio" aria-checked="false">
+                회전
+                </button>
+            </div>
         </div>
 
         <!-- 지하시설물 특화 블럭 -->
-        <div style="background:rgba(42,42,42,.7); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:block;">
+        <div style="background: rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:block;">
         <!-- 상단 타이틀 -->
             <div style="font-weight:600; margin-bottom:0.5rem;">
                 지하시설물 특화
@@ -495,8 +542,25 @@ const INSPECTOR_CSS = `
     }
 
     .inspect_list .k {
-        color: #98a6b3;
+        color: #ffffffff;
         margin-bottom: 5px;
+    }
+
+    .inspector button:hover {
+      background: rgba(47, 128, 255, 0.18);
+      color: #f5f7fb;
+    }
+
+    .inspector,
+    .inspector * {
+        color: #ffffff;
+        text-shadow:
+          1px 1px 0 #000,
+          -1px -1px 0 #000,
+          1px -1px 0 #000,
+          -1px 1px 0 #000,
+          1px 1px 0 #000;
+        font-family: Arial, Helvetica, sans-serif;
     }
 
     @media (max-width: 1024px) {
@@ -808,7 +872,6 @@ function flyToTilesetsWithPreset(
     return;
   }
   if (!union) {
-    alert('이동할 대상이 없습니다.');
     return;
   }
 
@@ -2182,7 +2245,6 @@ var CesiumHandler = (function(){
 
         createInfoBox({container: viewer.container});
         infoBoxEnable();
-        
 
         toolBarApi = measurement.mountToolBar({
             container: viewer.container,
@@ -2200,7 +2262,6 @@ var CesiumHandler = (function(){
         createInspectBox();
         inspectBoxEnable();
 
-
         currentModelConfig = {
             tilesetUrl: tilesetUrl,
             propertyUrls: propertyUrls,
@@ -2211,7 +2272,7 @@ var CesiumHandler = (function(){
 
         setMode(Mode.NORMAL);
         
-        return {viewer,Mode};
+        return viewer;
     }
 
     function initCesiumViewer(elementId){
@@ -2221,8 +2282,11 @@ var CesiumHandler = (function(){
     
         const cesiumViewer = new Cesium.Viewer(elementId, DefaultOption);
         //cesiumViewer.scene.fxaa = false;
-        cesiumViewer.scene.globe.depthTestAgainstTerrain = true;
-        cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+        cesiumViewer.scene.sun.show  = false;   // 태양
+        cesiumViewer.scene.moon.show = false;   // 달
+        
+        cesiumViewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
+        cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // 카메라 충돌 감지 비활성화(지하를 탐색하기 위함)
         cesiumViewer.scene.globe.translucency.frontFaceAlphaByDistance = new Cesium.NearFarScalar( 400.0, 0.0, 2000.0, 1.0);
        //cesiumViewer.resolutionScale = 0.75; // 해상도 낮추기
         cesiumViewer.scene.globe.baseColor = new Cesium.Color(0, 0, 0, 1);
@@ -2243,12 +2307,13 @@ var CesiumHandler = (function(){
         controller.minimumZoomDistance = 2.0;    // 지하 모델 근접 최소 거리
         controller.maximumZoomDistance = 300.0;  // 이 이상은 멀어지지 않게
 
-        // 카메라 관성(“밀려나가는” 느낌) 줄이기
+        // 카메라 관성(밀려나가는 느낌) 줄이기
         const cam = cesiumViewer.camera;
         cam.inertiaSpin      = 0.2;  // 회전 관성 (기본 0.9 근처)
         cam.inertiaTranslate = 0.4;  // 이동 관성
         cam.inertiaZoom      = 0.4;  // 줌 관성
 
+        // 모델 중앙 라벨 오버레이 위치 유지하기 위함
         cesiumViewer.scene.preRender.addEventListener(function () {
             if (!entityOverlayEl || entityOverlayEl.style.display === 'none') return;
 
@@ -2282,7 +2347,15 @@ var CesiumHandler = (function(){
         const tasks = [];
 
         // 3D Tileset 로딩
-        if(config.tilesetUrl) tasks.push(renderingAllTileset({ url: config.tilesetUrl }));
+        if(config.tilesetUrl) {
+            const tilesets = await renderingAllTileset({ url: config.tilesetUrl });
+
+            // 해당 위치로 카메라 이동
+            unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
+
+            tasks.push(tilesets);
+        }
 
         // 모델 정보 라벨 업데이트
         if(config.info){
@@ -2328,15 +2401,6 @@ var CesiumHandler = (function(){
 
         const tilesets = await loadAllTilesets(url);
         loaded_3Dtilesets = tilesets;
-
-        // 해당 위치로 카메라 이동
-        unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
-        flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
-
-        if (currentModelConfig.info) {
-            removeModelInfoLabel();
-            setModelInfoLabel(currentModelConfig.info);
-        }
 
         return tilesets;
     }
@@ -2670,6 +2734,7 @@ var CesiumHandler = (function(){
             if (handler) handler.setInputAction(onMouseLeftClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
             
     }
+
     function inspectBoxDisable(){
             inspectorBoxEnabled = false;
             if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -3272,7 +3337,7 @@ var CesiumHandler = (function(){
                 inspectorLists.innerHTML = `
                     <div class="inspect_list">
                         <div class="k">info</div>
-                        <div style="color:#e6edf3;">속성이 없습니다.</div>
+                        <div style="color:#cccccc;">속성이 없습니다.</div>
                     </div>
                 `;
                 return;
@@ -3284,7 +3349,7 @@ var CesiumHandler = (function(){
                 html += `
                     <div class="inspect_list">
                         <div class="k">${key}</div>
-                        <div style="color:#e6edf3;">${value}</div>
+                        <div style="color:#cccccc;">${value}</div>
                     </div>
                 `;
             });
@@ -3298,26 +3363,23 @@ var CesiumHandler = (function(){
     };
 })();
 
-// src/index.js
-
 /**
- * 
  *  target: "#element" 또는 DOM Element
- *  options: { tilesetUrl, propertyUrls, ... }
+ *  options: { 3dtileset url, 관련 속성정보 url , info={ 타이틀, 이미지 src(svg,png), 높이(default 100)} }
  */
 async function CesiumViewer(target, options = {}) {
   // target이 문자열이면 '#viewerRoot' 형태일 수도 있으니 '#' 제거해서 id로 사용
   const elementId = typeof target === "string" ? target.replace(/^#/, "") : (target && target.id);
-  const { viewer, updateModelConfig} = await CesiumHandler.init(elementId, options);
+  await CesiumHandler.init(elementId, options);
+
+  function update3Dtileset(tilesetUrl, propertyUrls = []) {
+    return CesiumHandler.updateModelConfig(tilesetUrl, propertyUrls);
+  }
 
   return {
-    viewer,
-    updateModelConfig
+    update3Dtileset
   };
 }
-
-// 필요하면 전체 핸들러도 export
-//export { default as CesiumHandler } from "./CesiumHandler.js";
 
 export { CesiumViewer };
 //# sourceMappingURL=git-viewer.esm.js.map

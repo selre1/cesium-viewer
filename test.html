@@ -43,7 +43,7 @@ html, body {
 <script>
   document.addEventListener("DOMContentLoaded", async function () {
       try {
-          const app = await GIT.CesiumViewer("#viewerRoot", {
+          window.app = await GIT.CesiumViewer("#viewerRoot", {
             tilesetUrl: "http://175.116.181.151:29090/3d-tileset/02_draco_glb/tileset.json",
             propertyUrls: ["http://175.116.181.151:29090/3d-tileset/properties/combined_properties.json"],
             info: {

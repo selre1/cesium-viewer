@@ -4,12 +4,13 @@
   "type": "module",
   "description": "Cesium 3D Tiles Viewer",
   "main": "dist/cesium-viewer.umd.js",
-  "module": "dist/cesium-viewer.esm.js", 
+  "module": "dist/cesium-viewer.esm.js",
   "scripts": {
     "start": "live-server --host=localhost --port=8000 --open=test.html",
     "build": "rollup -c"
   },
   "dependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
     "cesium": "^1.134.1"
   },
   "devDependencies": {

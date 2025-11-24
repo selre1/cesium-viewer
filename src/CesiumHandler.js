@@ -9,7 +9,7 @@ import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
 
 var CesiumHandler = (function(){
-    //Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
         
     let viewer, handler;
     let infoBoxEls = {}, infoBoxEnabled = false;
@@ -72,11 +72,11 @@ var CesiumHandler = (function(){
         sceneMode: Cesium.SceneMode.SCENE3D,
         //useDefaultRenderLoop: false // 자동 렌더링 여부
         // requestRenderMode: true, // scene을 업데이트하지 않으면 새 프레임을 렌더링하지 않도록 설정
-        //terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
+        terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
        // terrain: new Cesium.Terrain(Cesium.CesiumTerrainProvider.fromUrl('./terrain/tr')),
         baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
             url: 'https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
-            //rl: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
+            //url: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
             subdomains: 'base',
             minimumLevel: 0,
             maximumLevel: 19,
@@ -153,6 +153,8 @@ var CesiumHandler = (function(){
             break;
         
         case Mode.MEASURE_VERTICAL:
+            alert('서비스 준비중입니다.');
+            return;
             measurement.start("V");
             break;
 
@@ -318,7 +320,7 @@ var CesiumHandler = (function(){
             ...(config.info || {}),
             },
         };
-        return applyModelConfig(currentModelConfig );
+        return applyModelConfig(currentModelConfig);
     }
 
     async function renderingAllTileset({url}) {
@@ -330,15 +332,21 @@ var CesiumHandler = (function(){
         }
         loaded_3Dtilesets = [];
 
-        if (!url) {
-            console.warn("url이 존재하지 않습니다.");
+        if (url.length === 0) {
+            console.warn("tilesetUrl 이 존재하지 않습니다.");
             return [];
         }
+   
+        const allLoaded = [];
 
-        const tilesets = await loadAllTilesets(url);
-        loaded_3Dtilesets = tilesets;
+        for (const u of url) {
+            const tilesets = await loadAllTilesets(u);
+            allLoaded.push(...tilesets);
+        }
+      
+        loaded_3Dtilesets = allLoaded;
 
-        return tilesets;
+        return allLoaded;
     }
 
     async function loadTilesetInfo({url}) {
@@ -940,8 +948,8 @@ var CesiumHandler = (function(){
 
         // 탐색모드 버튼
         $cameraFree.on('click', () => {
-            //alert('해당 서비스 준비중입니다.');
-           // return;
+            alert('해당 서비스 준비중입니다.');
+            return;
 
            // 이미 탐색모드면 NORMAL로, 아니면 CAMERA_FREE로
             const next = (currentMode === Mode.CAMERA_FREE)

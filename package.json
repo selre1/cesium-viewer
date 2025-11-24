@@ -6,7 +6,7 @@
   "main": "dist/cesium-viewer.umd.js",
   "module": "dist/cesium-viewer.esm.js",
   "scripts": {
-    "start": "live-server --host=localhost --port=8000 --open=test.html",
+    "start": "live-server --host=175.116.181.23 --port=8000 --open=test.html",
     "build": "rollup -c"
   },
   "dependencies": {

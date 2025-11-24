@@ -42,26 +42,20 @@ html, body {
 
 <script>
   document.addEventListener("DOMContentLoaded", async function () {
-      try {
-          window.app = await GIT.CesiumViewer("#viewerRoot", {
-            tilesetUrl: [
-              "./output/mockdong/exterior/draco_glb/tileset.json",
-              "./output/mockdong/interior/draco_glb/tileset.json"
-            ],
-            propertyUrls: [
-              "./output/mockdong/exterior/properties.json",
-              "./output/mockdong/interior/properties.json"
-            ],
-            info: {
-              text: "서울시 공동구입니다.",
-              iconSrc: "./src/under.png",
-              length: 100,
-            },
-          });
-      } catch (err) {
-        console.error("초기화 실패", err);
-      }
-    });
+    try {
+        window.app = await GIT.CesiumViewer("#viewerRoot", {
+          tilesetUrl: ["http://175.116.181.151:29090/3d-tileset/02_draco_glb/tileset.json"],
+          propertyUrls: ["http://175.116.181.151:29090/3d-tileset/properties/combined_properties.json"],
+          info: {
+            text: "서울시 공동구입니다.",
+            iconSrc: "./src/under.png",
+            length: 100,
+          },
+        });
+    } catch (err) {
+      console.error("초기화 실패", err);
+    }
+  });
 
     
 </script>

@@ -6,7 +6,7 @@ const umdConfig = {
   input: "src/index.js",
   output: {
       //file: "dist/git-viewer.umd.js",
-      file: "dist/git-viewer.js",
+      file: "dist/GIT.js",
       format: "umd",
       name: "GIT", // 노출될 이름
       sourcemap: false,
@@ -36,7 +36,7 @@ const umdConfig = {
 const esmConfig = {
   input: "src/index.js",
   output: {
-    file: "dist/git-viewer.esm.js",
+    file: "dist/GIT.esm.js",
     format: "es",
     sourcemap: true,  // 개발용 디버그 편하게
   },

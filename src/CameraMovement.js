@@ -143,92 +143,71 @@ export function moveNormalDirection(viewer, movement, model){
 * pivot 불가
 */
 export function flyDirectionStayFitModel(viewer, model){
-        const scene  = viewer.scene;
-        const camera = viewer.camera;
+    const scene  = viewer.scene;
+    const camera = viewer.camera;
 
-        if (!model) return;
+    if (!model) return;
 
-        //모델의 bounding sphere 정보 가져오기
-        const bs = model._boundingSphere || model.boundingSphere;
-        if (!bs) return;
+    //모델의 bounding sphere 정보 가져오기
+    const bs = model._boundingSphere || model.boundingSphere;
+    if (!bs) return;
 
-        const center = bs.center;             // 모델 중심
-        const radius = bs.radius || 10.0;     // 모델 크기
+    const center = bs.center;             // 모델 중심
+    const radius = bs.radius || 10.0;     // 모델 크기
 
-        //카메라 FOV 기반으로 전체가 보이는 최소 거리 계산
-        const frustum = camera.frustum;
-        const fovy    = frustum.fovy || Cesium.Math.toRadians(60.0);
-        const aspect  = frustum.aspectRatio
-            || (viewer.canvas.clientWidth / viewer.canvas.clientHeight);
+    //카메라 FOV 기반으로 전체가 보이는 최소 거리 계산
+    const frustum = camera.frustum;
+    const fovy    = frustum.fovy || Cesium.Math.toRadians(60.0);
+    const aspect  = frustum.aspectRatio
+        || (viewer.canvas.clientWidth / viewer.canvas.clientHeight);
 
-        const fovx = 2.0 * Math.atan(Math.tan(fovy / 2.0) * aspect);
+    const fovx = 2.0 * Math.atan(Math.tan(fovy / 2.0) * aspect);
 
-        // 세로/가로 중 더 가까운 쪽 기준으로 거리 계산
-        const distV = radius / Math.sin(fovy / 2.0);
-        const distH = radius / Math.sin(fovx / 2.0);
-        let fitDistance = Math.max(distV, distH) * 1.1;   // 살짝 여유 10%
+    // 세로/가로 중 더 가까운 쪽 기준으로 거리 계산
+    const distV = radius / Math.sin(fovy / 2.0);
+    const distH = radius / Math.sin(fovx / 2.0);
+    let range = Math.max(distV, distH) * 1.1;   // 살짝 여유 10%
 
-        // 너무 가깝거나 너무 멀지 않게 한번 더 클램프
-        const dMin = 3.0;    // 실내용 너무 붙지 않게
-        const dMax = 50.0;  // 너무 멀어지지 않게 (필요하면 조정)
-        fitDistance = Cesium.Math.clamp(fitDistance, dMin, dMax);
+    // 너무 가깝거나 너무 멀지 않게 한번 더 클램프
+    const dMin = 3.0;    // 실내용 너무 붙지 않게
+    const dMax = 50.0;  // 너무 멀어지지 않게 
+    range = Cesium.Math.clamp(range, dMin, dMax);
 
-        // 현재 카메라 → 모델 중심 방향 기준으로 앞/뒤 결정
-        const forward = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.subtract(
+    const currentDistance = Cesium.Cartesian3.distance(camera.position, center);
+    if (Cesium.defined(currentDistance) && isFinite(currentDistance)) {
+        // 현재 거리보다 최대 1.3배까지만 멀어지게 허용
+        const maxAllowed = Math.max(dMin, Math.min(dMax, currentDistance * 1.1));
+        range = Math.min(range, maxAllowed);
+    }
+
+    const currentHeading = camera.heading;
+    let currentPitch   = camera.pitch;
+    const minPitch = Cesium.Math.toRadians(-80); // -90(수직)까지 안 가게
+    const maxPitch = Cesium.Math.toRadians(-10); // 너무 수평으로 안 가게
+    currentPitch   = Cesium.Math.clamp(currentPitch, minPitch, maxPitch);
+
+
+    // --- BoundingSphere 기준으로 fly + pivot 고정 ---
+    camera.flyToBoundingSphere(bs, {
+        duration: 0.7,
+        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT,
+        offset: new Cesium.HeadingPitchRange(
+            currentHeading,
+            currentPitch,
+            range
+        ),
+        complete() {
+            // 여기서 회전 pivot을 center로 고정
+            viewer.camera.lookAt(
                 center,
-                camera.position,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        // 최종 카메라 위치 = 모델 중심 앞쪽에서 fitDistance 만큼 떨어진 곳
-        const newPosition = Cesium.Cartesian3.add(
-            center,
-            Cesium.Cartesian3.multiplyByScalar(
-                forward,
-                -fitDistance,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        // direction = 중심을 바라보는 방향
-        const direction = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.subtract(
-                center,
-                newPosition,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        // up 벡터는 지표면 법선 기반 구성
-        const ellipsoid = scene.globe.ellipsoid;
-        const worldUp   = ellipsoid.geodeticSurfaceNormal(
-            center,
-            new Cesium.Cartesian3()
-        );
-
-        const right = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.cross(direction, worldUp, new Cesium.Cartesian3()),
-            new Cesium.Cartesian3()
-        );
-        const up = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.cross(right, direction, new Cesium.Cartesian3()),
-            new Cesium.Cartesian3()
-        );
-
-        camera.flyTo({
-            destination: newPosition,
-            orientation: {
-                direction: direction,
-                up: up
-            },
-            duration: 0.7,
-            easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
-        });
+                new Cesium.HeadingPitchRange(
+                currentHeading,
+                currentPitch,
+                range
+                )
+            );
+        }
+    });
 }
 
 /*
@@ -310,4 +289,103 @@ export function flyToTilesetsWithPreset(
     ),
     easingFunction: Cesium.EasingFunction.SINUSOIDAL_IN_OUT,
   });
+}
+
+
+// 클릭한 화면 위치로 "포커스 + 피벗" 세팅하는 함수
+export function flyToMousePosition(viewer, movement, options = {}) {
+    const scene  = viewer.scene;
+    const camera = viewer.camera;
+
+    // 1) 화면 좌표 → 3D 위치
+    let target = scene.pickPosition(movement.position);
+    if (!Cesium.defined(target)) {
+        target = scene.camera.pickEllipsoid(
+            movement.position,
+            scene.globe.ellipsoid
+        );
+    }
+    if (!Cesium.defined(target)) {
+        console.warn("클릭한 위치에서 target을 찾을 수 없습니다.");
+        return;
+    }
+
+    // 2) 현재 카메라 상태 가져오기
+    let heading = camera.heading;
+    let pitch   = camera.pitch;
+
+    // 너무 뒤집히지 않게 pitch 제한 (원하는 값으로 조절 가능)
+    const minPitch = Cesium.Math.toRadians(-80.0);
+    const maxPitch = Cesium.Math.toRadians(-10.0);
+    pitch = Cesium.Math.clamp(pitch, minPitch, maxPitch);
+
+    // 클릭 지점까지의 거리
+    let range = Cesium.Cartesian3.distance(camera.position, target);
+
+    // 너무 멀리/가까이 튀지 않게 제한
+    const dMin = options.minDistance ?? 2.0;
+    const dMax = options.maxDistance ?? 80.0;
+    range = Cesium.Math.clamp(range, dMin, dMax);
+
+    // 3) 현재 카메라 direction을 그대로 쓰되,
+    //    target 기준으로 같은 range 만큼 떨어져 있게 새 위치 계산
+    const direction = Cesium.Cartesian3.normalize(
+        camera.direction,
+        new Cesium.Cartesian3()
+    );
+
+    const newPosition = Cesium.Cartesian3.add(
+        target,
+        Cesium.Cartesian3.multiplyByScalar(
+            direction,
+            -range,
+            new Cesium.Cartesian3()
+        ),
+        new Cesium.Cartesian3()
+    );
+
+    // up 벡터는 지표면 법선 기준으로 다시 만들기 (롤 꼬이는 거 방지)
+    const ellipsoid = scene.globe.ellipsoid;
+    const worldUp   = ellipsoid.geodeticSurfaceNormal(
+        target,
+        new Cesium.Cartesian3()
+    );
+    const right = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.cross(direction, worldUp, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+    );
+    const up = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.cross(right, direction, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+    );
+
+    // 4) 먼저 flyTo로 자연스럽게 이동
+    camera.flyTo({
+        destination: newPosition,
+        orientation: {
+            direction: Cesium.Cartesian3.normalize(
+                Cesium.Cartesian3.subtract(
+                    target,
+                    newPosition,
+                    new Cesium.Cartesian3()
+                ),
+                new Cesium.Cartesian3()
+            ),
+            up
+        },
+        duration: options.duration ?? 0.6,
+        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT,
+        complete() {
+            // 5) flyTo가 끝난 뒤,
+            //    "이제부터 회전 pivot은 target이다"라고 고정해버림
+            const h = camera.heading;
+            const p = Cesium.Math.clamp(camera.pitch, minPitch, maxPitch);
+            const r = Cesium.Cartesian3.distance(camera.position, target);
+
+            camera.lookAt(
+                target,
+                new Cesium.HeadingPitchRange(h, p, r)
+            );
+        }
+    });
 }

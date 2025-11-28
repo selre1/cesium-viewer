@@ -3,7 +3,7 @@ export function Measurement({cesiumViewer}){
     let handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
     let mode; // 'D' | 'A' | 'V' (거리 or 면적 or 수직)
     let areaOptions = 'ground';
-    let floatingPoint, activeShape;
+    let activeShape;
     let activeShapePoints = [];
     let keydownHandler = null;
     let mouseLabel,prevCursor; //측정도구 라벨/커서
@@ -33,9 +33,7 @@ export function Measurement({cesiumViewer}){
 
         // 진행 드로우 동적 제거
         if (activeShape) viewer.entities.remove(activeShape);
-        if (floatingPoint) viewer.entities.remove(floatingPoint);
         activeShape = undefined;
-        floatingPoint = undefined;
         activeShapePoints = [];
     }
 
@@ -173,6 +171,10 @@ export function Measurement({cesiumViewer}){
                 heightReference: Cesium.HeightReference.NONE,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY
             }
+            // ellipsoid: {
+            //     radii: new Cesium.Cartesian3(0.1, 0.1, 0.1),
+            //     material: Cesium.Color.RED,
+            // }
         });
     }
 
@@ -188,23 +190,23 @@ export function Measurement({cesiumViewer}){
         function addPolyline(positions, material) {
             return viewer.entities.add({
                 polyline: {
-                positions,
-                clampToGround: false,
-                arcType: Cesium.ArcType.NONE,
-                width: 2.5,
-                material,
-                depthFailMaterial: material
+                    positions,
+                    clampToGround: false,
+                    arcType: Cesium.ArcType.NONE,
+                    width: 2,
+                    material : material,
+                    depthFailMaterial: material
                 }
             });
         }
         function addPolygon(hierarchy) {
             return viewer.entities.add({
                 polygon: {
-                hierarchy,
-                material: Cesium.Color.fromCssColorString('rgba(47,128,255,0.25)'),
-                outline: true,
-                outlineColor: Cesium.Color.fromCssColorString('#2F80FF'),
-                outlineWidth: 1.5
+                    hierarchy,
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                    material: Cesium.Color.fromCssColorString('rgba(47,128,255,0.25)'),
+                    outline: true,
+                    outlineColor: Cesium.Color.fromCssColorString('#2F80FF')
                 }
             });
         }
@@ -249,11 +251,8 @@ export function Measurement({cesiumViewer}){
 
         // 확정(라인/폴리곤)
         var finalShape = drawShape(position, clickEvtType);
+        finalShape.isMeasureEntity = true; // picking에서 구분하기 위함
         measureEndEntity.graphics.push(finalShape);
-
-        // 커서 이동점만 제거
-        if (floatingPoint) viewer.entities.remove(floatingPoint);
-        floatingPoint = undefined;
 
         // 세션 엔티티는 viewer에서 제거하지 말고 확정 버킷으로 넘긴 뒤 배열만 비웁니다.
         Array.prototype.push.apply(measureEndEntity.points, session.points);
@@ -291,13 +290,17 @@ export function Measurement({cesiumViewer}){
 
         // LEFT_CLICK: 점 추가(거리/면적 공통)
         handler.setInputAction(async function (movement) {
-            var cart = viewer.scene.pickPosition(movement.position);
+            let cart = viewer.scene.pickPosition(movement.position);
             if (!Cesium.defined(cart)) return;
-            if(mode === 'P'){
+
+            // ground 면적을 제외한 나머지는 feature 존재 여부 체크
+            if (!(mode === 'A' && areaOptions === 'ground')) {
                 const feature = viewer.scene.pick(movement.position);
-                if (!Cesium.defined(feature)) {
-                    return;
-                }
+                if (!Cesium.defined(feature))  return;
+                if(session.graphics.includes(feature.id)) return; // 진행 실선 측정무시
+            }
+
+            if(mode === 'P'){
                 const cartographic = Cesium.Cartographic.fromCartesian(cart);
                 const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
                 const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
@@ -309,15 +312,12 @@ export function Measurement({cesiumViewer}){
             }
 
             if (mode === 'V') {
-                const feature = viewer.scene.pick(movement.position);
-                if (!Cesium.defined(feature)) return;
                 await measureVerticalGapAt(movement.position);
                 return; 
             }
 
             if (activeShapePoints.length === 0) { // 거리, 면적의 첫 포인트
                 resetSession();
-                floatingPoint = createPoint(cart);
                 activeShapePoints.push(cart);
                 var dynamicPositions;
                 if (mode === 'D') {
@@ -340,7 +340,7 @@ export function Measurement({cesiumViewer}){
                 activeShape = drawShape(dynamicPositions);
                 session.graphics.push(activeShape);
             }
-            if (activeShapePoints.length > 1 && mode === 'D') {
+            if (activeShapePoints.length > 1 && mode === 'D') { // 점 사이 측정거리 표시
                 var prev = activeShapePoints[activeShapePoints.length - 2];
                 var dist = Cesium.Cartesian3.distance(cart, prev);
                 var mid = Cesium.Cartesian3.midpoint(prev, cart, new Cesium.Cartesian3());
@@ -351,18 +351,20 @@ export function Measurement({cesiumViewer}){
 
             activeShapePoints.push(cart);
             var p = createPoint(cart);
+            p.isMeasureEntity = true; // picking에서 구분하기 위함
             session.points.push(p);
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
         // MOUSE_MOVE: 점선 갱신
         handler.setInputAction(function (movement) {
             showMouseLabelAt(movement.endPosition,setMouseLabelText(mode, areaOptions));
-            if (!Cesium.defined(floatingPoint)) return;
             var np = viewer.scene.pickPosition(movement.endPosition);
             if (!Cesium.defined(np)) return;
-            floatingPoint.position.setValue(np);
-            activeShapePoints.pop();
-            activeShapePoints.push(np);
+            if(activeShapePoints.length > 1){
+                activeShapePoints.pop();
+                activeShapePoints.push(np);
+            }
+            
             
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
@@ -739,7 +741,7 @@ export function Measurement({cesiumViewer}){
                                 <button class="tool cesium-button" id="btn_vertical">
                                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" class="size-5 flex-shrink-0"><path d="M11 16C12.3976 16 13.569 16.9565 13.9023 18.25H19C19.4142 18.25 19.75 18.5858 19.75 19C19.75 19.4142 19.4142 19.75 19 19.75H13.9023C13.569 21.0435 12.3976 22 11 22C9.59958 22 8.42628 21.0397 8.0957 19.7422C8.06429 19.7462 8.0325 19.75 8 19.75H3C2.58579 19.75 2.25 19.4142 2.25 19C2.25 18.5858 2.58579 18.25 3 18.25H8C8.03246 18.25 8.06433 18.2528 8.0957 18.2568C8.4266 16.9598 9.59991 16 11 16ZM11 17.5C10.1716 17.5 9.5 18.1716 9.5 19C9.5 19.8284 10.1716 20.5 11 20.5C11.8284 20.5 12.5 19.8284 12.5 19C12.5 18.1716 11.8284 17.5 11 17.5ZM11 11.75C11.4142 11.75 11.75 12.0858 11.75 12.5V13.5C11.75 13.9142 11.4142 14.25 11 14.25C10.5858 14.25 10.25 13.9142 10.25 13.5V12.5C10.25 12.0858 10.5858 11.75 11 11.75ZM11 7.75C11.4142 7.75 11.75 8.08579 11.75 8.5V9.5C11.75 9.91421 11.4142 10.25 11 10.25C10.5858 10.25 10.25 9.91421 10.25 9.5V8.5C10.25 8.08579 10.5858 7.75 11 7.75ZM11 0C12.3976 0 13.569 0.956465 13.9023 2.25H19C19.4142 2.25 19.75 2.58579 19.75 3C19.75 3.41421 19.4142 3.75 19 3.75H13.9023C13.569 5.04354 12.3976 6 11 6C9.59958 6 8.42628 5.03968 8.0957 3.74219C8.06429 3.7462 8.0325 3.75 8 3.75H3C2.58579 3.75 2.25 3.41421 2.25 3C2.25 2.58579 2.58579 2.25 3 2.25H8C8.03246 2.25 8.06433 2.25284 8.0957 2.25684C8.4266 0.959806 9.59991 0 11 0ZM11 1.5C10.1716 1.5 9.5 2.17157 9.5 3C9.5 3.82843 10.1716 4.5 11 4.5C11.8284 4.5 12.5 3.82843 12.5 3C12.5 2.17157 11.8284 1.5 11 1.5Z" fill="currentColor"></path></svg>
                                 </button>
-                                <button class="tool cesium-button" id="btn_ground">
+                                <button class="tool cesium-button" id="btn_ground" disabled>
                                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <g transform="rotate(315 13 7.5) scale(0.8)">
                                         <path d="M3 16C4.65685 16 6 17.3431 6 19C6 20.6569 4.65685 22 3 22C1.34315 22 0 20.6569 0 19C0 17.3431 1.34315 16 3 16ZM19 16C20.6569 16 22 17.3431 22 19C22 20.6569 20.6569 22 19 22C17.3431 22 16 20.6569 16 19C16 17.3431 17.3431 16 19 16ZM3 17.5C2.17157 17.5 1.5 18.1716 1.5 19C1.5 19.8284 2.17157 20.5 3 20.5C3.82843 20.5 4.5 19.8284 4.5 19C4.5 18.1716 3.82843 17.5 3 17.5ZM19 17.5C18.1716 17.5 17.5 18.1716 17.5 19C17.5 19.8284 18.1716 20.5 19 20.5C19.8284 20.5 20.5 19.8284 20.5 19C20.5 18.1716 19.8284 17.5 19 17.5ZM9.5 18.25C9.91421 18.25 10.25 18.5858 10.25 19C10.25 19.4142 9.91421 19.75 9.5 19.75H8.5C8.08579 19.75 7.75 19.4142 7.75 19C7.75 18.5858 8.08579 18.25 8.5 18.25H9.5ZM13.5 18.25C13.9142 18.25 14.25 18.5858 14.25 19C14.25 19.4142 13.9142 19.75 13.5 19.75H12.5C12.0858 19.75 11.75 19.4142 11.75 19C11.75 18.5858 12.0858 18.25 12.5 18.25H13.5ZM3 11.75C3.41421 11.75 3.75 12.0858 3.75 12.5V13.5C3.75 13.9142 3.41421 14.25 3 14.25C2.58579 14.25 2.25 13.9142 2.25 13.5V12.5C2.25 12.0858 2.58579 11.75 3 11.75ZM19 11.75C19.4142 11.75 19.75 12.0858 19.75 12.5V13.5C19.75 13.9142 19.4142 14.25 19 14.25C18.5858 14.25 18.25 13.9142 18.25 13.5V12.5C18.25 12.0858 18.5858 11.75 19 11.75ZM3 7.75C3.41421 7.75 3.75 8.08579 3.75 8.5V9.5C3.75 9.91421 3.41421 10.25 3 10.25C2.58579 10.25 2.25 9.91421 2.25 9.5V8.5C2.25 8.08579 2.58579 7.75 3 7.75ZM19 7.75C19.4142 7.75 19.75 8.08579 19.75 8.5V9.5C19.75 9.91421 19.4142 10.25 19 10.25C18.5858 10.25 18.25 9.91421 18.25 9.5V8.5C18.25 8.08579 18.5858 7.75 19 7.75ZM3 0C4.65685 0 6 1.34315 6 3C6 4.65685 4.65685 6 3 6C1.34315 6 0 4.65685 0 3C0 1.34315 1.34315 0 3 0ZM19 0C20.6569 0 22 1.34315 22 3C22 4.65685 20.6569 6 19 6C17.3431 6 16 4.65685 16 3C16 1.34315 17.3431 0 19 0ZM3 1.5C2.17157 1.5 1.5 2.17157 1.5 3C1.5 3.82843 2.17157 4.5 3 4.5C3.82843 4.5 4.5 3.82843 4.5 3C4.5 2.17157 3.82843 1.5 3 1.5ZM19 1.5C18.1716 1.5 17.5 2.17157 17.5 3C17.5 3.82843 18.1716 4.5 19 4.5C19.8284 4.5 20.5 3.82843 20.5 3C20.5 2.17157 19.8284 1.5 19 1.5ZM9.5 2.25C9.91421 2.25 10.25 2.58579 10.25 3C10.25 3.41421 9.91421 3.75 9.5 3.75H8.5C8.08579 3.75 7.75 3.41421 7.75 3C7.75 2.58579 8.08579 2.25 8.5 2.25H9.5ZM13.5 2.25C13.9142 2.25 14.25 2.58579 14.25 3C14.25 3.41421 13.9142 3.75 13.5 3.75H12.5C12.0858 3.75 11.75 3.41421 11.75 3C11.75 2.58579 12.0858 2.25 12.5 2.25H13.5Z" fill="currentColor"></path>

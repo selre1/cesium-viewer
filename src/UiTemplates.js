@@ -371,7 +371,7 @@ export const HUD_HTML = `
 
         <!-- 카메라 그룹 -->
         <div class="hud-mode-wrap" style="margin-bottom:6px; background: rgb(20 26 34 / 66%); border-radius: 8px;">
-        <button id="hud-camera-group" type="button" class="cesium-button" style="font-size:11px;width:100%;margin:0;background: transparent; border-radius: 8px;">
+        <button id="hud-camera-group" type="button" class="cesium-button" style="font-size:11px;width:100%;margin:0;background: transparent; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
             카메라 ▸
         </button>
 

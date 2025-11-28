@@ -33,30 +33,65 @@ html, body {
   <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
    <script src="./cesium/Cesium.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-  <script src="/dist/git-viewer.js"></script>
+   <script src="./dist/GIT.js"></script>
 </head>
 <body>
 <div id="viewerRoot"></div>
     
 </body>
 
-<script>
-  document.addEventListener("DOMContentLoaded", async function () {
-    try {
-        window.app = await GIT.CesiumViewer("#viewerRoot", {
-          tilesetUrl: ["http://175.116.181.151:29090/3d-tileset/02_draco_glb/tileset.json"],
-          propertyUrls: ["http://175.116.181.151:29090/3d-tileset/properties/combined_properties.json"],
-          info: {
-            text: "서울시 공동구입니다.",
-            iconSrc: "./src/under.png",
-            length: 100,
-          },
-        });
-    } catch (err) {
-      console.error("초기화 실패", err);
+ <!-- <script type="module">
+  import CesiumViewer from './src/index.js';
+  var gitViewer = gitViewer || {};
+  const config = {
+    tilesetUrl:[
+          "./output/mockdong/exterior/draco_glb/tileset.json",
+          "./output/mockdong/interior/draco_glb/tileset.json"
+    ],
+    propertyUrls: [
+          "./output/mockdong/exterior/properties.json",
+          "./output/mockdong/interior/properties.json"
+    ],
+    info: {
+          text: "서울시 공동구입니다.",
+          iconSrc: "./src/under.png",
+          length: 100
     }
-  });
+  };
+ (async function() {
+  gitViewer.app = await CesiumViewer("#viewerRoot", config);
+ })(); 
+</script> --> 
+ <script>
+(async function() {
+    if (document.readyState === "loading") {
+        await new Promise((resolve) =>
+            document.addEventListener("DOMContentLoaded", resolve, { once: true })
+        );
+    }
 
-    
-</script>
+    try{
+        const config = {
+            tilesetUrl:[
+                "http://175.116.181.151:29090/3d-tileset/mockdong/exterior/draco_glb/tileset.json",
+                "http://175.116.181.151:29090/3d-tileset/mockdong/interior/draco_glb/tileset.json"
+            ],
+            propertyUrls: [
+                "http://175.116.181.151:29090/3d-tileset/mockdong/exterior/properties.json",
+                "http://175.116.181.151:29090/3d-tileset/mockdong/interior/properties.json"
+            ],
+            info: {
+                text: "서울시 공동구",
+                iconSrc: "./src/under.png",
+                length: 100
+            }
+        };
+        const app = await GIT("viewerRoot", config);
+    } catch (err) {
+        console.error("GIT.CesiumViewer 초기화 실패", err);
+    }
+})();
+
+
+</script> 
 </html>

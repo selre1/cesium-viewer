@@ -3,7 +3,7 @@ import {
   INSPECTOR_STYLE_ID, INSPECTOR_CSS, INSPECTOR_HTML,
   COMPASS_SVG
 } from "./UiTemplates.js";
-import {flyDirectionStayFitModel, flyToTilesetsWithPreset} from "./CameraMovement.js";
+import {flyDirectionStayFitModel, flyToMousePosition, flyToTilesetsWithPreset} from "./CameraMovement.js";
 import { CameraFreeMode }   from "./CameraFreeMode.js";
 import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
@@ -100,7 +100,7 @@ var CesiumHandler = (function(){
     let measurement; // 측정도구 기능 제어
     let toolBarApi; // 툴 단위 제어
 
-    // 현재 기능 정의
+    // 각 기능 정의
     const Mode = {
         NORMAL: 'normal',
         CAMERA_FREE: 'cameraFree',
@@ -126,6 +126,8 @@ var CesiumHandler = (function(){
         infoBoxDisable();
         inspectBoxDisable();
         restoreModelState(selectedState);
+        restoreModelState(hoverState);
+        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 객체 클릭 후 pivot된 카메라 해제
         if (toolBarApi) toolBarApi.showMountToolBar();
 
         switch (nextMode) {
@@ -281,6 +283,48 @@ var CesiumHandler = (function(){
         return cesiumViewer;
     }
 
+    function boundingSphereToRectangle(boundingSphere, ellipsoid) {
+        if (!boundingSphere) return undefined;
+        if (!ellipsoid) ellipsoid = Cesium.Ellipsoid.WGS84;
+
+        const center = boundingSphere.center;
+        const radius = boundingSphere.radius;
+
+        // 구 표면에서 6방향 샘플 (x,y,z 축 방향)
+        const directions = [
+            new Cesium.Cartesian3(2, 0, 0),
+            new Cesium.Cartesian3(-2, 0, 0),
+            new Cesium.Cartesian3(0, 2, 0),
+            new Cesium.Cartesian3(0, -2, 0),
+            new Cesium.Cartesian3(0, 0, 2),
+            new Cesium.Cartesian3(0, 0, -2),
+        ];
+
+        let west =  Number.POSITIVE_INFINITY;
+        let east =  Number.NEGATIVE_INFINITY;
+        let south = Number.POSITIVE_INFINITY;
+        let north = Number.NEGATIVE_INFINITY;
+
+        for (const dir of directions) {
+            const offset = Cesium.Cartesian3.multiplyByScalar(dir, radius, new Cesium.Cartesian3());
+            const pos    = Cesium.Cartesian3.add(center, offset, new Cesium.Cartesian3());
+
+            const carto  = Cesium.Cartographic.fromCartesian(pos, ellipsoid);
+            if (!carto) continue;
+
+            west  = Math.min(west,  carto.longitude);
+            east  = Math.max(east,  carto.longitude);
+            south = Math.min(south, carto.latitude);
+            north = Math.max(north, carto.latitude);
+        }
+
+        if (!isFinite(west) || !isFinite(east) || !isFinite(south) || !isFinite(north)) {
+            return undefined;
+        }
+
+        return new Cesium.Rectangle(west, south, east, north);
+    }
+
     async function applyModelConfig(config={}) {
         const tasks = [];
 
@@ -290,7 +334,11 @@ var CesiumHandler = (function(){
 
             // 해당 위치로 카메라 이동
             unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0.8, 600);
+            const rect = boundingSphereToRectangle(unionTilesetCenter,viewer.scene.globe.ellipsoid);
+            viewer.scene.globe.cartographicLimitRectangle = rect;
+            
+
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 600);
 
             tasks.push(tilesets);
         }
@@ -451,7 +499,6 @@ var CesiumHandler = (function(){
         });
     }
 
-    //  BoundingSphere 기준 수직라인 + 라벨 생성
     function setModelInfoLabel(options = {}) {
         if (!unionTilesetCenter || !viewer) return;
 
@@ -527,7 +574,6 @@ var CesiumHandler = (function(){
         });
     }
 
-    // 모델 정보 라벨 제거
     function removeModelInfoLabel() {
         const lineEntity  = viewer.entities.getById("entity_line");
         const iconEntity = viewer.entities.getById("entity_icon");
@@ -776,7 +822,7 @@ var CesiumHandler = (function(){
                 // dynamicScreenSpaceErrorFactor: 24.0,
                 // dynamicScreenSpaceErrorHeightFalloff: 0.25
 
-                maximumScreenSpaceError: 20,      // default 16보다 올려서 성능상향
+                maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
                 skipLevelOfDetail: true,
                 baseScreenSpaceError: 1024,
                 skipScreenSpaceErrorFactor: 16,
@@ -784,12 +830,12 @@ var CesiumHandler = (function(){
                 immediatelyLoadDesiredLevelOfDetail: false,
                 loadSiblings: false,
 
-                dynamicScreenSpaceError: true,
+                dynamicScreenSpaceError: false,
                 dynamicScreenSpaceErrorDensity: 2.0e-4,
                 dynamicScreenSpaceErrorFactor: 24.0,
                 dynamicScreenSpaceErrorHeightFalloff: 0.25,
                 cullWithChildrenBounds: true,
-                cullRequestsWhileMoving: true
+                cullRequestsWhileMoving: false
             
             });
             viewer.scene.primitives.add(tileset);
@@ -1081,6 +1127,7 @@ var CesiumHandler = (function(){
         state.color       = undefined;
         state.blendMode   = undefined;
         state.blendAmount = undefined;
+
     }
 
     function updateHoverHighlight(pickedModel){
@@ -1165,51 +1212,68 @@ var CesiumHandler = (function(){
         }
     }
 
+    function pickModelFeatureIgnoringMeasure(windowPosition) {
+        const scene = viewer.scene;
+        const ray = viewer.camera.getPickRay(windowPosition);
+        const hits = scene.drillPickFromRay(ray);
+
+        if (!hits || hits.length === 0) return null;
+
+        for (const h of hits) {
+            // Cesium 버전별로 구조가 조금 다를 수 있음
+            const obj = h.object || h;
+            if (!obj) continue;
+
+            // 측정도구 엔티티 스킵
+            if (obj.id && obj.id.isMeasureEntity) {
+                continue;
+            }
+
+            // 3D Tiles feature에서 실제 Model 가져오기
+            if (obj.content && obj.content._model) {
+                return {
+                    feature: obj,
+                    model: obj.content._model,
+                };
+            }
+        }
+        return null;
+    }
+
     function onMouseMove(movement) {
         const scene = viewer.scene;
 
         const now = performance.now();
-        if (now - hoverCheckLastTime < 50) {
-            // 너무 자주 호출되면 무시 (경위도 약간 느려져도 크게 상관 없음)
-            return;
-        }
-        hoverCheckLastTime = now;
+        // 너무 자주 호출되면 무시
+        if (now - hoverCheckLastTime < 50) return;
         
-       const picked = scene.pick(movement.endPosition);
+        hoverCheckLastTime = now;
 
-
-        /*
-        * 현재 마우스 아래 entity 찾기
-        */ 
-        if (Cesium.defined(picked) && picked.id && picked.id.id === 'entity_icon') {
-            showEntityOverlay(picked.id);
-        } else {
-            // entity 위에 있지 않을 때는 숨김
-            hideEntityOverlay();
-        }
-
-
-
-        /*
-        * 현재 마우스 아래 모델 찾기
-        */ 
-       let pickedModel;
-        if (Cesium.defined(picked) && picked.content && picked.content._model) {
-            pickedModel = picked.content._model;
-        }
+        const pickResult = pickModelFeatureIgnoringMeasure(movement.endPosition);
+        let pickedModel = pickResult ? pickResult.model : undefined;
 
         /*
         *  hover 하이라이트 업데이트
         *    - 이전 hover 복구 + 새 hover 적용까지 처리
         */
         updateHoverHighlight(pickedModel);
+
+        /*
+        * 현재 마우스 아래 icon entity (설명서) 찾기
+        */
+       let pickedEntity;
+        if(!pickedEntity) pickedEntity = scene.pick(movement.endPosition);
+        if (Cesium.defined(pickedEntity) && pickedEntity.id && pickedEntity.id.id === 'entity_icon') {
+            showEntityOverlay(pickedEntity.id);
+        } else {
+            hideEntityOverlay();
+        }
         
         /*
         * 경위도 업데이트
         */ 
         if (!infoBoxEnabled) return;
-        // 마우스 위치의 지표/타일 표면 위치 추정
-        // cartesian = 데카르트좌표계
+
         let cartesian = Cesium.defined(scene.pickPosition) ? scene.pickPosition(movement.endPosition) : undefined;
         if (!Cesium.defined(cartesian)) {
             cartesian = scene.camera.pickEllipsoid(movement.endPosition, scene.globe.ellipsoid);
@@ -1238,18 +1302,22 @@ var CesiumHandler = (function(){
         * content => 클릭된 오브젝트 타일
         * detail => 내부 세부정보
         */
-        let pickedFeature = scene.pick(movement.position);
+        const pickResult = pickModelFeatureIgnoringMeasure(movement.position);
 
         //이전 모델 선택 하이라이트 해제
         restoreModelState(selectedState);
+        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);// 객체 클릭 후 pivot된 카메라 해제
 
-        if(!Cesium.defined(pickedFeature) || pickedFeature.id instanceof Cesium.Entity) {
+        if (!pickResult) {
             setInspectorBox(false);
+            updateInspectorToggleButton(null);
             return;
         }
 
+        const pickedFeature = pickResult.feature;
+        const model         = pickResult.model;
+
         //glTF 모델 색상 하이라이트
-        const model = pickedFeature.content && pickedFeature.content._model;
         if (model) {
             // hover 상태와 겹치면 hover는 해제
             if (hoverState.model === model) {
@@ -1268,7 +1336,7 @@ var CesiumHandler = (function(){
             updateInspectorToggleButton(null);
         }
 
-        let guid = pickedFeature.detail.node._name;
+        let guid = pickedFeature.detail?.node?._name;
         renderInspector(guid);
         setInspectorBox(true);
 

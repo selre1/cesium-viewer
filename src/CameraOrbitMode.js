@@ -24,7 +24,7 @@ export function CameraOrbitMode({cesiumViewer}){
 
         // 거리/각도 설정
         const pitch = Cesium.Math.toRadians(-45.0);   // -45도 내려다보기
-        const range = radius * 5.0;                   // 모델보다 조금 떨어져서
+        const range = radius * 7.0;                   // 모델보다 조금 떨어져서
 
         // 시작 시점엔 현재 heading 그대로 사용
         let heading = camera.heading;

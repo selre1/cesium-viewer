@@ -1,7 +1,7 @@
 export function Measurement({cesiumViewer}){
     let viewer = cesiumViewer;
     let handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
-    let mode; // 'D' | 'A' | 'V' (거리 or 면적 or 수직)
+    let mode; // 'D' | 'A' | 'V' || 'C' (거리 or 면적 or 수직 or 단면적)
     let areaOptions = 'ground';
     let activeShape;
     let activeShapePoints = [];
@@ -228,6 +228,61 @@ export function Measurement({cesiumViewer}){
         }
     }
 
+
+    async function sampleTerrainPolyline( multiLines, stepMeters = 5) {
+    const terrainProvider = viewer.terrainProvider;
+    const geodesic = new Cesium.EllipsoidGeodesic();
+
+    const result = []; // [{ distance, height, carto, segIndex, tOnSegment }, ...]
+    let totalOffset = 0; // 전체 누적거리
+
+    for (let i = 0; i < multiLines.length - 1; i++) {
+        const start = multiLines[i];
+        const end   = multiLines[i + 1];
+
+        // 1) 구간 거리 계산
+        geodesic.setEndPoints(start, end);
+        const segmentLength = geodesic.surfaceDistance; // meter
+
+        // 최소 2개는 뽑고, stepMeters 간격으로 샘플 개수 계산
+        const sampleCount = Math.max(2, Math.ceil(segmentLength / stepMeters));
+
+        // 2) 이 세그먼트 안의 샘플 포인트 만들기
+        const segmentPositions = [];
+        for (let k = 0; k <= sampleCount; k++) {
+        const t = k / sampleCount;                     // 0~1
+        const interp = geodesic.interpolateUsingFraction(t);
+        segmentPositions.push(interp);
+        }
+
+        // 3) 지형 고도 샘플 요청
+        const updated = await Cesium.sampleTerrainMostDetailed(
+        terrainProvider,
+        segmentPositions
+        );
+
+        // 4) 결과 정리
+        for (let k = 0; k < updated.length; k++) {
+        const t = k / (updated.length - 1);           // 0~1
+        const distOnSegment = segmentLength * t;      // 이 segment 안에서 거리
+        const distGlobal    = totalOffset + distOnSegment; // 전체 누적 거리
+
+        result.push({
+            distance:  distGlobal,       // x축으로 쓸 거리
+            height:    updated[k].height,
+            carto:     updated[k],
+            segIndex:  i,                // 몇번째 segment인지
+            tOnSegment: t,
+        });
+        }
+
+        // 5) 누적 거리 업데이트
+        totalOffset += segmentLength;
+    }
+
+    return result;
+    }
+
     function finalizeActive(clickEvtType) {
         if (!activeShape) return;
 
@@ -248,6 +303,23 @@ export function Measurement({cesiumViewer}){
         }
         viewer.entities.remove(activeShape);
         activeShape = undefined;
+
+        // const cartoLine = position.map(pos =>
+        //     Cesium.Ellipsoid.WGS84.cartesianToCartographic(pos)
+        // );
+
+        // const samples = await sampleTerrainPolyline( cartoLine, 1); // 1m 간격
+
+        // viewer.entities.add({
+        // polyline: {
+        //     positions: position,
+        //     width: 6,
+        //     material: Cesium.Color.fromCssColorString('#afff2fff'),
+        //     show: true,
+        //     clampToGround: true
+        
+        // },
+        // });
 
         // 확정(라인/폴리곤)
         var finalShape = drawShape(position, clickEvtType);
@@ -565,43 +637,43 @@ export function Measurement({cesiumViewer}){
     }
 
     function start(m) {
-            mode = m;
-            resetSession();
-            offHandler();
-            bindDrawing();
-            bindKeyboard();
-            ensureMouseLabel();
-            mouseLabel.label.text = setMouseLabelText(mode, areaOptions); 
-            setDrawingCursor(true);
+        mode = m;
+        resetSession();
+        offHandler();
+        bindDrawing();
+        bindKeyboard();
+        ensureMouseLabel();
+        mouseLabel.label.text = setMouseLabelText(mode, areaOptions); 
+        setDrawingCursor(true);
     }
 
     function stop(){
-            offHandler();
-            resetSession(); 
-            unbindKeyboard()
-            hideMouseLabel(); 
-            setDrawingCursor(false); 
-            mode=undefined;
-             //$(".tool-root").find('.tool').removeClass('is-active');
+        offHandler();
+        resetSession(); 
+        unbindKeyboard()
+        hideMouseLabel(); 
+        setDrawingCursor(false); 
+        mode=undefined;
+         //$(".tool-root").find('.tool').removeClass('is-active');
     }
 
     function removeAll() {
-            measureEndEntity.graphics.forEach(function (g) { viewer.entities.remove(g); });
-            measureEndEntity.points.forEach(function (p) { viewer.entities.remove(p); });
-            measureEndEntity.labels.forEach(function (l) { viewer.entities.remove(l); });
-            measureEndEntity.graphics = [];
-            measureEndEntity.points = [];
-            measureEndEntity.labels = [];
+        measureEndEntity.graphics.forEach(function (g) { viewer.entities.remove(g); });
+        measureEndEntity.points.forEach(function (p) { viewer.entities.remove(p); });
+        measureEndEntity.labels.forEach(function (l) { viewer.entities.remove(l); });
+        measureEndEntity.graphics = [];
+        measureEndEntity.points = [];
+        measureEndEntity.labels = [];
     }
 
     function setAreaMode(mode) {
-            // 'ground' | 'surface' 만 허용
-            areaOptions = (mode === 'surface') ? 'surface' : 'ground';
+        // 'ground' | 'surface' 만 허용
+        areaOptions = (mode === 'surface') ? 'surface' : 'ground';
     }
 
     function mountToolBar({container, onPoint, onLine,
-            onVertical, onAreaGround, onAreaSurface, 
-            onClose, onInit ,onMarkerAdd, onMarkerClose}){
+            onVertical, onAreaGround, onAreaSurface, onCrossSectionArea,
+            onClose, onInit ,onInspector}){
 
             const root = (typeof container === 'string') ? document.querySelector(container) : container;
             if (!root) { throw new Error('Tool Bar 생성: 유효한 container가 필요합니다.'); }
@@ -752,7 +824,13 @@ export function Measurement({cesiumViewer}){
                                 <button class="tool cesium-button" id="btn_surface">
                                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" class="size-5 flex-shrink-0"><path d="M3 16C4.65685 16 6 17.3431 6 19C6 20.6569 4.65685 22 3 22C1.34315 22 0 20.6569 0 19C0 17.3431 1.34315 16 3 16ZM19 16C20.6569 16 22 17.3431 22 19C22 20.6569 20.6569 22 19 22C17.3431 22 16 20.6569 16 19C16 17.3431 17.3431 16 19 16ZM3 17.5C2.17157 17.5 1.5 18.1716 1.5 19C1.5 19.8284 2.17157 20.5 3 20.5C3.82843 20.5 4.5 19.8284 4.5 19C4.5 18.1716 3.82843 17.5 3 17.5ZM19 17.5C18.1716 17.5 17.5 18.1716 17.5 19C17.5 19.8284 18.1716 20.5 19 20.5C19.8284 20.5 20.5 19.8284 20.5 19C20.5 18.1716 19.8284 17.5 19 17.5ZM9.5 18.25C9.91421 18.25 10.25 18.5858 10.25 19C10.25 19.4142 9.91421 19.75 9.5 19.75H8.5C8.08579 19.75 7.75 19.4142 7.75 19C7.75 18.5858 8.08579 18.25 8.5 18.25H9.5ZM13.5 18.25C13.9142 18.25 14.25 18.5858 14.25 19C14.25 19.4142 13.9142 19.75 13.5 19.75H12.5C12.0858 19.75 11.75 19.4142 11.75 19C11.75 18.5858 12.0858 18.25 12.5 18.25H13.5ZM3 11.75C3.41421 11.75 3.75 12.0858 3.75 12.5V13.5C3.75 13.9142 3.41421 14.25 3 14.25C2.58579 14.25 2.25 13.9142 2.25 13.5V12.5C2.25 12.0858 2.58579 11.75 3 11.75ZM19 11.75C19.4142 11.75 19.75 12.0858 19.75 12.5V13.5C19.75 13.9142 19.4142 14.25 19 14.25C18.5858 14.25 18.25 13.9142 18.25 13.5V12.5C18.25 12.0858 18.5858 11.75 19 11.75ZM3 7.75C3.41421 7.75 3.75 8.08579 3.75 8.5V9.5C3.75 9.91421 3.41421 10.25 3 10.25C2.58579 10.25 2.25 9.91421 2.25 9.5V8.5C2.25 8.08579 2.58579 7.75 3 7.75ZM19 7.75C19.4142 7.75 19.75 8.08579 19.75 8.5V9.5C19.75 9.91421 19.4142 10.25 19 10.25C18.5858 10.25 18.25 9.91421 18.25 9.5V8.5C18.25 8.08579 18.5858 7.75 19 7.75ZM3 0C4.65685 0 6 1.34315 6 3C6 4.65685 4.65685 6 3 6C1.34315 6 0 4.65685 0 3C0 1.34315 1.34315 0 3 0ZM19 0C20.6569 0 22 1.34315 22 3C22 4.65685 20.6569 6 19 6C17.3431 6 16 4.65685 16 3C16 1.34315 17.3431 0 19 0ZM3 1.5C2.17157 1.5 1.5 2.17157 1.5 3C1.5 3.82843 2.17157 4.5 3 4.5C3.82843 4.5 4.5 3.82843 4.5 3C4.5 2.17157 3.82843 1.5 3 1.5ZM19 1.5C18.1716 1.5 17.5 2.17157 17.5 3C17.5 3.82843 18.1716 4.5 19 4.5C19.8284 4.5 20.5 3.82843 20.5 3C20.5 2.17157 19.8284 1.5 19 1.5ZM9.5 2.25C9.91421 2.25 10.25 2.58579 10.25 3C10.25 3.41421 9.91421 3.75 9.5 3.75H8.5C8.08579 3.75 7.75 3.41421 7.75 3C7.75 2.58579 8.08579 2.25 8.5 2.25H9.5ZM13.5 2.25C13.9142 2.25 14.25 2.58579 14.25 3C14.25 3.41421 13.9142 3.75 13.5 3.75H12.5C12.0858 3.75 11.75 3.41421 11.75 3C11.75 2.58579 12.0858 2.25 12.5 2.25H13.5Z" fill="currentColor"></path>
                                     </svg>
-                                    </button>
+                                </button>
+                                <button class="tool cesium-button" id="btn_cross">
+                                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" class="size-5 flex-shrink-0">
+                                        <path d="M3 16C4.65685 16 6 17.3431 6 19C6 20.6569 4.65685 22 3 22C1.34315 22 0 20.6569 0 19C0 17.3431 1.34315 16 3 16ZM19 16C20.6569 16 22 17.3431 22 19C22 20.6569 20.6569 22 19 22C17.3431 22 16 20.6569 16 19C16 17.3431 17.3431 16 19 16ZM3 17.5C2.17157 17.5 1.5 18.1716 1.5 19C1.5 19.8284 2.17157 20.5 3 20.5C3.82843 20.5 4.5 19.8284 4.5 19C4.5 18.1716 3.82843 17.5 3 17.5ZM19 17.5C18.1716 17.5 17.5 18.1716 17.5 19C17.5 19.8284 18.1716 20.5 19 20.5C19.8284 20.5 20.5 19.8284 20.5 19C20.5 18.1716 19.8284 17.5 19 17.5ZM9.5 18.25C9.91421 18.25 10.25 18.5858 10.25 19C10.25 19.4142 9.91421 19.75 9.5 19.75H8.5C8.08579 19.75 7.75 19.4142 7.75 19C7.75 18.5858 8.08579 18.25 8.5 18.25H9.5ZM13.5 18.25C13.9142 18.25 14.25 18.5858 14.25 19C14.25 19.4142 13.9142 19.75 13.5 19.75H12.5C12.0858 19.75 11.75 19.4142 11.75 19C11.75 18.5858 12.0858 18.25 12.5 18.25H13.5ZM3 11.75C3.41421 11.75 3.75 12.0858 3.75 12.5V13.5C3.75 13.9142 3.41421 14.25 3 14.25C2.58579 14.25 2.25 13.9142 2.25 13.5V12.5C2.25 12.0858 2.58579 11.75 3 11.75ZM19 11.75C19.4142 11.75 19.75 12.0858 19.75 12.5V13.5C19.75 13.9142 19.4142 14.25 19 14.25C18.5858 14.25 18.25 13.9142 18.25 13.5V12.5C18.25 12.0858 18.5858 11.75 19 11.75ZM3 7.75C3.41421 7.75 3.75 8.08579 3.75 8.5V9.5C3.75 9.91421 3.41421 10.25 3 10.25C2.58579 10.25 2.25 9.91421 2.25 9.5V8.5C2.25 8.08579 2.58579 7.75 3 7.75ZM19 7.75C19.4142 7.75 19.75 8.08579 19.75 8.5V9.5C19.75 9.91421 19.4142 10.25 19 10.25C18.5858 10.25 18.25 9.91421 18.25 9.5V8.5C18.25 8.08579 18.5858 7.75 19 7.75ZM3 0C4.65685 0 6 1.34315 6 3C6 4.65685 4.65685 6 3 6C1.34315 6 0 4.65685 0 3C0 1.34315 1.34315 0 3 0ZM19 0C20.6569 0 22 1.34315 22 3C22 4.65685 20.6569 6 19 6C17.3431 6 16 4.65685 16 3C16 1.34315 17.3431 0 19 0ZM3 1.5C2.17157 1.5 1.5 2.17157 1.5 3C1.5 3.82843 2.17157 4.5 3 4.5C3.82843 4.5 4.5 3.82843 4.5 3C4.5 2.17157 3.82843 1.5 3 1.5ZM19 1.5C18.1716 1.5 17.5 2.17157 17.5 3C17.5 3.82843 18.1716 4.5 19 4.5C19.8284 4.5 20.5 3.82843 20.5 3C20.5 2.17157 19.8284 1.5 19 1.5ZM9.5 2.25C9.91421 2.25 10.25 2.58579 10.25 3C10.25 3.41421 9.91421 3.75 9.5 3.75H8.5C8.08579 3.75 7.75 3.41421 7.75 3C7.75 2.58579 8.08579 2.25 8.5 2.25H9.5ZM13.5 2.25C13.9142 2.25 14.25 2.58579 14.25 3C14.25 3.41421 13.9142 3.75 13.5 3.75H12.5C12.0858 3.75 11.75 3.41421 11.75 3C11.75 2.58579 12.0858 2.25 12.5 2.25H13.5Z" fill="currentColor" />
+                                        <path d="M7.5 14L10 11L13 13L15.5 9.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                         <div class="tool-panel-footer">
@@ -779,9 +857,18 @@ export function Measurement({cesiumViewer}){
                         <button class="tool-group" id="group-measure">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide size-5 lucide-ruler-icon lucide-ruler size-5"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"></path><path d="m14.5 12.5 2-2"></path><path d="m11.5 9.5 2-2"></path><path d="m8.5 6.5 2-2"></path><path d="m17.5 15.5 2-2"></path></svg>
                         </button>
+                        <button class="tool-group" id="group-inspector">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide size-5 lucide-info-icon size-5">
+                                <path d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20z"></path>            
+                                <path d="M12 10v6"></path>
+                                <path d="M12 8h.01"></path>
+                            </svg>
+
+                        </button>
                         <button class="tool-group" id="group-marker">
                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="size-5"><path d="M6.5 18.4999H16.5C17.6046 18.4999 18.5 17.6044 18.5 16.4999C18.5 15.3953 17.6046 14.4999 16.5 14.4999H3.5C2.39543 14.4999 1.5 13.6044 1.5 12.4999C1.5 11.3953 2.39543 10.4999 3.5 10.4999H7.5M17.815 4.52155C18.147 4.18958 18.3335 3.73935 18.3335 3.26988C18.3335 2.80041 18.147 2.35018 17.815 2.01821C17.483 1.68625 17.0328 1.49976 16.5633 1.49976C16.0939 1.49976 15.6436 1.68625 15.3117 2.01821L10.97 6.36155C10.7719 6.55956 10.6269 6.80432 10.5483 7.07321L9.85083 9.46488C9.82992 9.53659 9.82867 9.6126 9.8472 9.68496C9.86574 9.75731 9.90339 9.82336 9.95621 9.87617C10.009 9.92899 10.0751 9.96664 10.1474 9.98518C10.2198 10.0037 10.2958 10.0025 10.3675 9.98155L12.7592 9.28405C13.0281 9.20553 13.2728 9.06051 13.4708 8.86238L17.815 4.52155Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                         </button>
+                    
                     </div>
                 `;
                 root.appendChild(toolRoot);
@@ -789,6 +876,7 @@ export function Measurement({cesiumViewer}){
 
             const $rootWrap      = $(toolRoot);
             const $groupMeasure  = $rootWrap.find('#group-measure');
+            const $btnInspector  = $rootWrap.find('#group-inspector');
             const $groupMarker   = $rootWrap.find('#group-marker');
             const $measurePanel  = $rootWrap.find('.tool-panel--measure');
             const $markerPanel   = $rootWrap.find('.tool-panel--marker');
@@ -799,6 +887,7 @@ export function Measurement({cesiumViewer}){
             const $btnVert     = $measurePanel.find('#btn_vertical');
             const $btnAreaG    = $measurePanel.find('#btn_ground');
             const $btnAreaS    = $measurePanel.find('#btn_surface');
+            const $btnCross    = $measurePanel.find('#btn_cross');
             const $btnInit     = $measurePanel.find('#btn_init');
             const $btnClose    = $measurePanel.find('#btn_close');
 
@@ -808,6 +897,7 @@ export function Measurement({cesiumViewer}){
 
             let measureOpen = false;
             let markerOpen  = false;
+            let inspectorOpen = false;
 
             function setActive($btn){ $tools.removeClass('is-active'); $btn.addClass('is-active'); }
             function clearActive(){ $tools.removeClass('is-active'); }
@@ -816,15 +906,31 @@ export function Measurement({cesiumViewer}){
             function openMeasurePanel(){
                 measureOpen = true;
                 markerOpen  = false;
+                inspectorOpen = false;
                 $measurePanel.addClass('is-open');
                 $markerPanel.removeClass('is-open');
                 $groupMeasure.addClass('is-active');
                 $groupMarker.removeClass('is-active');
+                $btnInspector.removeClass('is-active');
+            }
+
+            function openInspectorPanel(){
+                inspectorOpen = true;
+                markerOpen  = false;
+                measureOpen = false;
+
+                $measurePanel.removeClass('is-open');
+                $markerPanel.removeClass('is-open');
+                $groupMeasure.removeClass('is-active');
+                $groupMarker.removeClass('is-active');
+
+                $btnInspector.addClass('is-active');
             }
 
             function openMarkerPanel(){
                 markerOpen  = true;
                 measureOpen = false;
+                inspectorOpen = false;
                 $markerPanel.addClass('is-open');
                 $measurePanel.removeClass('is-open');
                 $groupMarker.addClass('is-active');
@@ -834,10 +940,12 @@ export function Measurement({cesiumViewer}){
             function closeAllPanels(){
                 measureOpen = false;
                 markerOpen  = false;
+                inspectorOpen = false;
                 $measurePanel.removeClass('is-open');
                 $markerPanel.removeClass('is-open');
                 $groupMeasure.removeClass('is-active');
                 $groupMarker.removeClass('is-active');
+                $btnInspector.removeClass('is-active');
                 clearActive();
             }
 
@@ -857,16 +965,27 @@ export function Measurement({cesiumViewer}){
                     openMeasurePanel();
                 }
             });
+            $btnInspector.on('click', ()=>{
+                if (inspectorOpen){
+                    closeAllPanels();
+                    onInspector?.(false);
+                } else{
+                    openInspectorPanel();
+                    onInspector?.(true);
+                }
+            });
 
             $groupMarker.on('click', () => {
                 alert('해당 서비스 준비중입니다.');
+                return;
                 if (markerOpen) {
                     closeAllPanels();
-                } else { // 마커그룹 활성화 -> 측정도구 그룹 초기화
+                } else { 
                     openMarkerPanel();
                     onClose?.();   // 측정 세션 종료
                 }
             });
+
 
              // --- 측정 패널 기본 동작 -----
 
@@ -893,6 +1012,11 @@ export function Measurement({cesiumViewer}){
             $btnAreaS.on('click', () => {
                 setActive($btnAreaS);
                 onAreaSurface?.();
+            });
+
+            $btnCross.on('click', () =>{
+                setActive($btnCross);
+                onCrossSectionArea?.();
             });
 
             $btnInit.on('click', () => {

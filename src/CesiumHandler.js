@@ -73,7 +73,7 @@ var CesiumHandler = (function(){
         //useDefaultRenderLoop: false // 자동 렌더링 여부
         // requestRenderMode: true, // scene을 업데이트하지 않으면 새 프레임을 렌더링하지 않도록 설정
         terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
-       // terrain: new Cesium.Terrain(Cesium.CesiumTerrainProvider.fromUrl('./terrain/tr')),
+        //terrain: new Cesium.Terrain(Cesium.CesiumTerrainProvider.fromUrl('./terrain/tr')),
         baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
             url: 'https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
             //url: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
@@ -110,6 +110,7 @@ var CesiumHandler = (function(){
         MEASURE_VERTICAL: 'measure_vertical',
         MEASURE_AREA_GROUND: 'measure_area_ground',
         MEASURE_AREA_SURFACE: 'measure_area_surface',
+        MEASURE_CROSS_SECTION_AREA : 'measure_cross_section_area'
     };
 
     // 초기 기본 모드 정의
@@ -169,7 +170,12 @@ var CesiumHandler = (function(){
             measurement.setAreaMode("surface");
             measurement.start("A");
             break;
+
+        case Mode.MEASURE_CROSS_SECTION_AREA:
+            break;
         }
+
+        
 
         currentMode = nextMode;
     }
@@ -193,14 +199,13 @@ var CesiumHandler = (function(){
             onVertical: () => setMode(Mode.MEASURE_VERTICAL),
             onAreaGround: () => setMode(Mode.MEASURE_AREA_GROUND),
             onAreaSurface: () => setMode(Mode.MEASURE_AREA_SURFACE),
+            onCrossSectionArea: () => setMode(Mode.MEASURE_CROSS_SECTION_AREA),
             onClose: () => setMode(Mode.NORMAL),
             onInit: () => measurement.removeAll(),
-            onMarkerAdd() { console.log('마커 추가 클릭'); },
-            onMarkerClear() { console.log('마커 초기화 클릭'); }
+            onInspector: (enable) => setInspectorBox(enable)
         });
 
         createInspectBox();
-        inspectBoxEnable();
 
         currentModelConfig = {
             tilesetUrl: tilesetUrl,
@@ -241,8 +246,8 @@ var CesiumHandler = (function(){
     
         const controller = cesiumViewer.scene.screenSpaceCameraController;
         // 줌/회전 민감도 낮추기 (기본 zoomFactor≈5, rotateFactor≈1 근처)
-        controller.zoomFactor   = 1.5;  // 휠 줌 너무 세면 1.2~2.0 정도로
-        controller.rotateFactor = 0.4;  // 회전 속도 줄이기
+        controller.zoomFactor   = 3;  // 휠 줌 너무 세면 1.2~2.0 정도로
+        //controller.rotateFactor = 0.4;  // 회전 속도 줄이기
         // 너무 가까이/멀리 못 가게 범위 제한
         controller.minimumZoomDistance = 2.0;    // 지하 모델 근접 최소 거리
         controller.maximumZoomDistance = 300.0;  // 이 이상은 멀어지지 않게
@@ -552,7 +557,7 @@ var CesiumHandler = (function(){
         createRoundBadgeCanvas({
             text : text,
             iconSrc: iconSrc,
-            size: 50,
+            size: 40,
             padding: 5,
             pixelScale: 1.5 
         }).then((badgeCanvas) => {
@@ -628,6 +633,9 @@ var CesiumHandler = (function(){
         inspectorLists = document.getElementById('inspector_list_container');
         const $btnInspectorClose = $inspectorBox.find('#btnInspectorClose');
         $btnInspectorModelShow = $inspectorBox.find('#btnInspectorModelShow');
+
+        inspectBoxEnable();
+        setInspectorBox(false);
 
         $btnInspectorModelShow.on('click', function(){
             const model = inspectorSelectedModel;
@@ -822,20 +830,20 @@ var CesiumHandler = (function(){
                 // dynamicScreenSpaceErrorFactor: 24.0,
                 // dynamicScreenSpaceErrorHeightFalloff: 0.25
 
-                maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
-                skipLevelOfDetail: true,
-                baseScreenSpaceError: 1024,
-                skipScreenSpaceErrorFactor: 16,
-                skipLevels: 1,
-                immediatelyLoadDesiredLevelOfDetail: false,
-                loadSiblings: false,
+                // maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
+                // skipLevelOfDetail: true,
+                // baseScreenSpaceError: 1024,
+                // skipScreenSpaceErrorFactor: 16,
+                // skipLevels: 1,
+                // immediatelyLoadDesiredLevelOfDetail: false,
+                // loadSiblings: false,
 
-                dynamicScreenSpaceError: false,
-                dynamicScreenSpaceErrorDensity: 2.0e-4,
-                dynamicScreenSpaceErrorFactor: 24.0,
-                dynamicScreenSpaceErrorHeightFalloff: 0.25,
-                cullWithChildrenBounds: true,
-                cullRequestsWhileMoving: false
+                // dynamicScreenSpaceError: false,
+                // dynamicScreenSpaceErrorDensity: 2.0e-4,
+                // dynamicScreenSpaceErrorFactor: 24.0,
+                // dynamicScreenSpaceErrorHeightFalloff: 0.25,
+                // cullWithChildrenBounds: true,
+                // cullRequestsWhileMoving: false
             
             });
             viewer.scene.primitives.add(tileset);
@@ -1309,7 +1317,7 @@ var CesiumHandler = (function(){
         viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);// 객체 클릭 후 pivot된 카메라 해제
 
         if (!pickResult) {
-            setInspectorBox(false);
+            //setInspectorBox(false);
             updateInspectorToggleButton(null);
             return;
         }
@@ -1338,7 +1346,7 @@ var CesiumHandler = (function(){
 
         let guid = pickedFeature.detail?.node?._name;
         renderInspector(guid);
-        setInspectorBox(true);
+        //setInspectorBox(true);
 
         function renderInspector(guid) {
             if (!inspectorLists) return;

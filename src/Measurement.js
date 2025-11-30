@@ -137,8 +137,8 @@ export function Measurement({cesiumViewer}){
         const horizontalOrigin = placeRight ? Cesium.HorizontalOrigin.LEFT   : Cesium.HorizontalOrigin.CENTER;
         const verticalOrigin   = placeRight ? Cesium.VerticalOrigin.CENTER   : Cesium.VerticalOrigin.CENTER;
         const pixelOffset      = placeRight ? new Cesium.Cartesian2(12, 0)   : new Cesium.Cartesian2(0, -20);
-
-        return viewer.entities.add({
+ 
+        const canvasLabel = viewer.entities.add({
             position: pos,
             billboard: {
                 image: canvas,
@@ -157,6 +157,7 @@ export function Measurement({cesiumViewer}){
                 disableDepthTestDistance: Number.POSITIVE_INFINITY
             }
         });
+        return canvasLabel;
     }
 
     function createPoint(pos) {
@@ -179,23 +180,24 @@ export function Measurement({cesiumViewer}){
     }
 
     function drawShape(positionData, clickEvtType) {
-        function getLineMaterial(isFinal) {
+        function getLineMaterial(isFinal, color='#2F80FF') {
             return isFinal
-            ? Cesium.Color.fromCssColorString('#2F80FF') // 확정: 실선
+            ? Cesium.Color.fromCssColorString(color) // 확정: 실선
             : new Cesium.PolylineDashMaterialProperty({   // 진행중: 점선
-                color: Cesium.Color.fromCssColorString('#2F80FF')
+                color: Cesium.Color.fromCssColorString(color)
                 // PolylineDash에는 glowPower 없음
             });
         }
-        function addPolyline(positions, material) {
+        function addPolyline(positions, material, clampToGround=false, width=2, arc=true) {
+            const arcType = arc ? Cesium.ArcType.NONE : Cesium.ArcType.GEODESIC;
             return viewer.entities.add({
                 polyline: {
                     positions,
-                    clampToGround: false,
-                    arcType: Cesium.ArcType.NONE,
-                    width: 2,
+                    clampToGround: clampToGround,
+                    arcType: arcType ,   
+                    width: width,
                     material : material,
-                    depthFailMaterial: material
+                    depthFailMaterial: material 
                 }
             });
         }
@@ -217,6 +219,10 @@ export function Measurement({cesiumViewer}){
             // 거리: 폴리라인
             return addPolyline(positionData, getLineMaterial(isFinal));
         }
+        if (mode === 'C') {
+            // 단면적: 폴리라인
+            return addPolyline(positionData, getLineMaterial(isFinal, '#59ff2fff'), true, 6, false);
+        }
         if(mode === 'A'){
             if (areaOptions === 'ground') {
                 // 지면: 폴리곤
@@ -228,59 +234,54 @@ export function Measurement({cesiumViewer}){
         }
     }
 
+    async function sampleTerrainPolyline( cartoLine, stepMeters = 5) {
+        const terrainProvider = viewer.terrainProvider;
+        const geodesic = new Cesium.EllipsoidGeodesic();
 
-    async function sampleTerrainPolyline( multiLines, stepMeters = 5) {
-    const terrainProvider = viewer.terrainProvider;
-    const geodesic = new Cesium.EllipsoidGeodesic();
+        const result = []; // [{ distance, height, carto, segIndex, tOnSegment }, ...]
+        let totalOffset = 0; // 전체 누적거리
 
-    const result = []; // [{ distance, height, carto, segIndex, tOnSegment }, ...]
-    let totalOffset = 0; // 전체 누적거리
+        for (let i = 0; i < cartoLine.length - 1; i++) {
+            const start = cartoLine[i];
+            const end   = cartoLine[i + 1];
 
-    for (let i = 0; i < multiLines.length - 1; i++) {
-        const start = multiLines[i];
-        const end   = multiLines[i + 1];
+            // 구간 거리 계산
+            geodesic.setEndPoints(start, end);
+            const segmentLength = geodesic.surfaceDistance; // meter
 
-        // 1) 구간 거리 계산
-        geodesic.setEndPoints(start, end);
-        const segmentLength = geodesic.surfaceDistance; // meter
+            // 최소 2개는 뽑고, stepMeters 간격으로 샘플 개수 계산
+            const sampleCount = Math.max(2, Math.ceil(segmentLength / stepMeters));
 
-        // 최소 2개는 뽑고, stepMeters 간격으로 샘플 개수 계산
-        const sampleCount = Math.max(2, Math.ceil(segmentLength / stepMeters));
+            // 세그먼트 안의 샘플 포인트 만들기
+            const segmentPositions = [];
+            for (let k = 0; k <= sampleCount; k++) {
+                const t = k / sampleCount;                     // 0~1
+                const interp = geodesic.interpolateUsingFraction(t);
+                segmentPositions.push(interp);
+            }
 
-        // 2) 이 세그먼트 안의 샘플 포인트 만들기
-        const segmentPositions = [];
-        for (let k = 0; k <= sampleCount; k++) {
-        const t = k / sampleCount;                     // 0~1
-        const interp = geodesic.interpolateUsingFraction(t);
-        segmentPositions.push(interp);
+            // 지형 고도 샘플링
+            const updated = await Cesium.sampleTerrainMostDetailed(terrainProvider,segmentPositions);
+
+            for (let k = 0; k < updated.length; k++) {
+                const t = k / (updated.length - 1);           // 0~1
+                const distOnSegment = segmentLength * t;      // segment 안에서 거리
+                const distGlobal    = totalOffset + distOnSegment; // 전체 누적 거리
+
+                result.push({
+                    distance:  distGlobal,
+                    height:    updated[k].height,
+                    carto:     updated[k],
+                    segIndex:  i,                // 몇번째 segment인지
+                    tOnSegment: t,
+                });
+            }
+
+            // 누적 거리 업데이트
+            totalOffset += segmentLength;
         }
 
-        // 3) 지형 고도 샘플 요청
-        const updated = await Cesium.sampleTerrainMostDetailed(
-        terrainProvider,
-        segmentPositions
-        );
-
-        // 4) 결과 정리
-        for (let k = 0; k < updated.length; k++) {
-        const t = k / (updated.length - 1);           // 0~1
-        const distOnSegment = segmentLength * t;      // 이 segment 안에서 거리
-        const distGlobal    = totalOffset + distOnSegment; // 전체 누적 거리
-
-        result.push({
-            distance:  distGlobal,       // x축으로 쓸 거리
-            height:    updated[k].height,
-            carto:     updated[k],
-            segIndex:  i,                // 몇번째 segment인지
-            tOnSegment: t,
-        });
-        }
-
-        // 5) 누적 거리 업데이트
-        totalOffset += segmentLength;
-    }
-
-    return result;
+        return result;
     }
 
     function finalizeActive(clickEvtType) {
@@ -304,29 +305,86 @@ export function Measurement({cesiumViewer}){
         viewer.entities.remove(activeShape);
         activeShape = undefined;
 
-        // const cartoLine = position.map(pos =>
-        //     Cesium.Ellipsoid.WGS84.cartesianToCartographic(pos)
-        // );
-
-        // const samples = await sampleTerrainPolyline( cartoLine, 1); // 1m 간격
-
-        // viewer.entities.add({
-        // polyline: {
-        //     positions: position,
-        //     width: 6,
-        //     material: Cesium.Color.fromCssColorString('#afff2fff'),
-        //     show: true,
-        //     clampToGround: true
-        
-        // },
-        // });
-
         // 확정(라인/폴리곤)
         var finalShape = drawShape(position, clickEvtType);
         finalShape.isMeasureEntity = true; // picking에서 구분하기 위함
         measureEndEntity.graphics.push(finalShape);
 
-        // 세션 엔티티는 viewer에서 제거하지 말고 확정 버킷으로 넘긴 뒤 배열만 비웁니다.
+         if (mode === 'C') {
+            const cartoLine = position.map(pos =>
+                Cesium.Ellipsoid.WGS84.cartesianToCartographic(pos)
+            );
+            // 1m 간격으로 지형 샘플링
+            sampleTerrainPolyline(cartoLine, 1).then(samples => {
+                //{
+                //   distance: 123.4,    // 누적 거리
+                //   height:   37.89,          // terrain height
+                //   carto:    Cartographic,   // { longitude, latitude, height }
+                //   segIndex: 0, // 구간 인덱스
+                //   tOnSegment: 0.5       // 구간 내 비율(0~1)
+                // }
+                if (!samples || samples.length === 0) return;
+                const lonLatArray = [];
+                const minHeights  = [];
+                const maxHeights  = [];
+                const terrainHeights = [];
+
+                 // 3D Tiles 샘플링용 Cartographic 배열
+                const facilityCartos = [];
+
+                for (const sample of samples) {
+                    const cartographic = sample.carto; // Cartographic
+
+                    const lonDeg = Cesium.Math.toDegrees(cartographic.longitude);
+                    const latDeg = Cesium.Math.toDegrees(cartographic.latitude);
+
+                    // wall positions
+                    lonLatArray.push(lonDeg, latDeg, 0);
+
+                    const terrainH = cartographic.height;
+                    // 지형 높이 저장
+                    terrainHeights.push(terrainH);
+                     // 벽 아래: 지형
+                    minHeights.push(terrainH);
+                  
+                    // 3D Tiles 샘플용 Cartographic (height는 무시되므로 0으로 넣어도 됨)
+                    facilityCartos.push(
+                        new Cesium.Cartographic(cartographic.longitude, cartographic.latitude, 0.0)
+                    );
+                }
+
+                viewer.scene.sampleHeightMostDetailed(facilityCartos,[viewer.scene.globe]).then((updatedPositions) => {
+                     for (let i = 0; i < updatedPositions.length; i++) {
+                        const facilityCarto = updatedPositions[i];
+                        const facilityH = facilityCarto.height;
+
+                        // 샘플이 안 된 경우(undefined)이면 지형 높이와 같음 처리
+                        if (facilityH === undefined) {
+                            maxHeights.push(terrainHeights[i]);
+                        } else {
+                            maxHeights.push(facilityH);  // 벽 위: 시설물 표면 높이
+                        }
+                    }
+                    const crossSectionEntity = viewer.entities.add({
+                        name: "Cross Section Area Wall",
+                        wall: {
+                            // positions는 xy만 중요, 실제 높이는 min/maxHeights로 제어
+                            positions: Cesium.Cartesian3.fromDegreesArrayHeights(lonLatArray),
+                            minimumHeights: minHeights,   // 지형
+                            maximumHeights: maxHeights,   // 시설물 (또는 지형)
+                            material: Cesium.Color.LIGHTGRAY.withAlpha(0.5),
+                            outline: true,
+                            outlineColor: Cesium.Color.LIGHTGRAY,
+                            outlineWidth: 2
+                        }
+                    });
+                    crossSectionEntity.isMeasureEntity = true;
+                    measureEndEntity.graphics.push(crossSectionEntity);
+                });
+            });            
+        }
+
+        // 세션 엔티티는 viewer에서 제거하지 말고 확정 버킷으로 넘긴 뒤 배열만 비움
         Array.prototype.push.apply(measureEndEntity.points, session.points);
         Array.prototype.push.apply(measureEndEntity.labels, session.labels);
         session.points = [];
@@ -377,9 +435,12 @@ export function Measurement({cesiumViewer}){
                 const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
                 const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
                 const height = cartographic.height.toFixed(2);
-                
-                measureEndEntity.points.push(createPoint(cart))
-                measureEndEntity.labels.push(createLabel(cart, `${lon}\n${lat}\n${height}`,{ point: true }))
+                const point = createPoint(cart);
+                point.isMeasureEntity = true;
+                measureEndEntity.points.push(point);
+                const pointLabel = createLabel(cart, `${lon}\n${lat}\n${height}`,{ point: true });
+                pointLabel.isMeasureEntity = true;
+                measureEndEntity.labels.push(pointLabel);
                 return;
             }
 
@@ -392,7 +453,7 @@ export function Measurement({cesiumViewer}){
                 resetSession();
                 activeShapePoints.push(cart);
                 var dynamicPositions;
-                if (mode === 'D') {
+                if (mode === 'D' || mode === 'C') {
                     dynamicPositions = new Cesium.CallbackProperty(function () {
                         return activeShapePoints;
                     }, false);
@@ -412,7 +473,7 @@ export function Measurement({cesiumViewer}){
                 activeShape = drawShape(dynamicPositions);
                 session.graphics.push(activeShape);
             }
-            if (activeShapePoints.length > 1 && mode === 'D') { // 점 사이 측정거리 표시
+            if (activeShapePoints.length > 1 && (mode === 'D' || mode === 'C')) { // 점 사이 측정거리 표시
                 var prev = activeShapePoints[activeShapePoints.length - 2];
                 var dist = Cesium.Cartesian3.distance(cart, prev);
                 var mid = Cesium.Cartesian3.midpoint(prev, cart, new Cesium.Cartesian3());
@@ -436,7 +497,6 @@ export function Measurement({cesiumViewer}){
                 activeShapePoints.pop();
                 activeShapePoints.push(np);
             }
-            
             
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
@@ -603,13 +663,15 @@ export function Measurement({cesiumViewer}){
                 depthFailMaterial: Cesium.Color.fromCssColorString('#fff200ff')
             }
         });
+        verticalLine.isMeasureEntity = true;
         measureEndEntity.graphics.push(verticalLine);
 
         // 라벨 위치: 중간점
         const label = createLabel(Cesium.Cartesian3.midpoint(cartModel, cartTerrain, new Cesium.Cartesian3()), `수직 거리: ${absDz.toFixed(2)} m`);
+        label.isMeasureEntity = true;
         measureEndEntity.labels.push(label);
 
-        // 모델/지면 점에 작은 포인트
+        // 모델 점에 작은 포인트
         const pModel = viewer.entities.add({
             position: cartModel,
             point: { 
@@ -618,6 +680,7 @@ export function Measurement({cesiumViewer}){
                 disableDepthTestDistance: Number.POSITIVE_INFINITY 
             }
         });
+        pModel.isMeasureEntity = true;
         measureEndEntity.points.push(pModel);
 
         // 지면포인트
@@ -631,6 +694,7 @@ export function Measurement({cesiumViewer}){
                 disableDepthTestDistance: Number.POSITIVE_INFINITY 
             }
         });
+        pTerr.isMeasureEntity = true;
         measureEndEntity.points.push(pTerr);
 
         return { verticalLine, label, pModel, pTerr };

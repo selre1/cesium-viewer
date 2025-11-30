@@ -172,6 +172,7 @@ var CesiumHandler = (function(){
             break;
 
         case Mode.MEASURE_CROSS_SECTION_AREA:
+            measurement.start("C");
             break;
         }
 
@@ -1004,7 +1005,6 @@ var CesiumHandler = (function(){
         $cameraFree.on('click', () => {
             alert('해당 서비스 준비중입니다.');
             return;
-
            // 이미 탐색모드면 NORMAL로, 아니면 CAMERA_FREE로
             const next = (currentMode === Mode.CAMERA_FREE)
                 ? Mode.NORMAL

@@ -270,14 +270,9 @@ export function flyToTilesetsWithPreset(
   duration = 0.8,
   range = 600
 ) {
-  if(presetKey==="left" | presetKey === "right"){
-    alert('해당 서비스 준비중입니다.');
-    return;
-  }
-  if (!union) {
-    return;
-  }
 
+  if (!union) return;
+  
   const preset = VIEW_PRESETS[presetKey] || VIEW_PRESETS.top;
 
   viewer.scene.camera.flyToBoundingSphere(union, {

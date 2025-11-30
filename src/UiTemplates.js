@@ -393,8 +393,8 @@ export const HUD_HTML = `
             </div>
         </div>
 
-        <!-- 지하시설물 특화 블럭 -->
-        <div style="background: rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:none;">
+        <!-- 지하시설물 특화 블럭 서비스-->
+        <div style="background: rgb(20 26 34 / 66%); padding:6px 10px; border-radius:8px; margin-bottom:6px; display:block;">
         <!-- 상단 타이틀 -->
             <div style="font-weight:600; margin-bottom:0.5rem;">
                 지하시설물 특화

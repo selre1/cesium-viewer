@@ -13,7 +13,32 @@ export default async function CesiumViewer(target, options = {}) {
     return CesiumHandler.updateModelConfig(tilesetUrl, propertyUrls);
   }
 
+  function addWebMapService(url, layers){
+    if(!url || !layers){
+      console.warn(`url : ${url} , layerName : ${layers}를 확인해주세요.`);
+      return;
+    }
+    return CesiumHandler.applyWebMapService(url,layers);
+  }
+
+  function updateTerrain(url){
+    CesiumHandler.updateTerrain(url);
+  }
+
+  function updateBaseLayer(url){
+    CesiumHandler.updateBaseLayer(url);
+  }
+
+  function setMode(type){
+    CesiumHandler.setMode(type);
+  }
+
   return {
-    update3Dtileset
+    viewer,
+    setMode,
+    updateBaseLayer,
+    updateTerrain,
+    update3Dtileset,
+    addWebMapService
   };
 }

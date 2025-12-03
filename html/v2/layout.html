@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport"
+            content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+      <meta http-equiv="X-UA-Compatible" content="ie=edge">
+      <!-- 제이쿼리 -->
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+      <!-- CSS -->
+      <link rel="stylesheet" href="./css/index.css">
+      <link rel="stylesheet" href="./css/lostark.css">
+      <!-- Boxicons CSS -->
+      <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+      <title>Minhyeok Personal Web</title>
+    </head>
+    <body>
+        <nav class="sidebar">
+            <header>
+                <div class="image-text">
+                    <span class="image">
+                        <img src="./images/logo.png" alt="logo">
+                    </span>
+                    <div class="text header-text">
+                        <span class="name">Minhyeok</span>
+                        <span class="profession">Personal Web</span>
+                    </div>
+                </div>
+                <i class="bx bx-chevron-right toggle"></i>
+            </header>
+            <div class="menu-bar">
+                <div class="menu">
+                    <li class="search-box">
+                        <i class="bx bx-search icon"></i>
+                        <input id="igdb_id" type="text" placeholder="IGDB ID Search..." onkeyup="enterKey();"/>
+                    </li>
+                    <ul class="menu-links">
+                        <li class="nav-link">
+                            <a href="/lostark" class="nav-link-item">
+                                <!--<img class="img-icon" src="../resources/lostark_icon.jpeg" alt="lostark_icon">-->
+                                <i class="bx bx-search icon"></i>
+                                <span class="text nav-text">로스트아크</span>
+                            </a>
+                        </li>
+                        <div class="nav-dropdown">
+                            <li>
+                                <a href="/lostark/character" class="nav-link-item">
+                                    <i class='bx bx-right-arrow icon'></i>
+                                    <span class="text nav-text">내 캐릭터</span>
+                                </a>
+                            </li>
+                        </div>
+
+                        <li class="nav-link">
+                            <a href="/restaurant">
+                                <i class='bx bx-food-menu icon'></i>
+                                <span class="text nav-text">점심식사</span>
+                            </a>
+                        </li>
+                        <div class="nav-dropdown">
+                            <li>
+                                <a href="/restaurant/seohyunData" class="nav-link-item">
+                                    <i class='bx bx-data icon'></i>
+                                    <span class="text nav-text">서현 데이터</span>
+                                </a>
+                            </li>
+                        </div>
+                        <li class="nav-link">
+                            <a href="/IGDB">
+                                <i class="bx bx-bar-chart-alt-2 icon"></i>
+                                <span class="text nav-text">IGDB</span>
+                            </a>
+                        </li>
+                        <li class="nav-link">
+                            <a href="">
+                                <i class="bx bx-bell icon"></i>
+                                <span class="text nav-text">Notifications</span>
+                            </a>
+                        </li>
+                        <li class="nav-link">
+                            <a href="">
+                                <i class="bx bx-pie-chart-alt icon"></i>
+                                <span class="text nav-text">Analytics</span>
+                            </a>
+                        </li>
+                        <li class="nav-link">
+                            <a href="">
+                                <i class="bx bx-heart icon"></i>
+                                <span class="text nav-text">Likes</span>
+                            </a>
+                        </li>
+                        <li class="nav-link">
+                            <a href="">
+                                <i class='bx bx-data icon'></i>
+                                <span class="text nav-text">Datas</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="bottom-content">
+                    <!--
+                    <li class="">
+                        <a href="">
+                            <i class="bx bx-log-out icon"></i>
+                            <span class="text nav-text">Logout</span>
+                        </a>
+                    </li>
+                    -->
+                    <li class="mode">
+                        <div class="moon-sun">
+                            <i class="bx bx-moon icon moon"></i>
+                            <i class="bx bx-sun icon sun"></i>
+                        </div>
+                        <span class="mode-text text">Dark Mode</span>
+                        <div class="toggle-switch">
+                            <span class="switch"></span>
+                        </div>
+                    </li>
+                </div>
+            </div>
+        </nav>
+        <section class="home">
+            <div class="text">로스트아크</div>
+            <div class="lostark wrap">
+                <div class="lostark-wrap">
+                    <div class="lostark-wrap text-box">
+                        <strong>재련재료 데이터</strong><br>
+                        <p>6시간 간격으로 재련재료 데이터 자동 저장</p>
+                    </div>
+                    <div class="lostark-table-wrap">
+                        <table class="lostark-table">
+                            <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">이름</th>
+                                <th scope="col">구분</th>
+                                <th scope="col">묶음</th>
+                                <th scope="col">전일 평균가</th>
+                                <th scope="col">현재 가격</th>
+                                <th scope="col">최근 최저가</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="marketItem : ${marketItems}" th:id="${marketItem.id}">
+                                <th scope="row"><img th:src="${marketItem.icon}" th:alt="${marketItem.name}"></th>
+                                <td th:text="${marketItem.name}"></td>
+                                <td th:text="${marketItem.grade}"></td>
+                                <td th:text="${marketItem.bundleCount}"></td>
+                                <td th:text="${marketItem.YDayAvgPrice}"></td>
+                                <td th:text="${marketItem.recentPrice}"></td>
+                                <td th:text="${marketItem.currentMinPrice}"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="lostark-wrap">
+                    <div class="lostark-wrap text-box">
+                        <strong>일일컨텐츠 수익</strong>
+                        <p>카오스 던전 : 파괴석, 수호석, 보석, 골드(골드&보스방)</p>
+                        <p>가디언 토벌 : 파괴석, 수호석, 돌파석</p>
+                    </div>
+                    <div class="lostark-table-wrap">
+                        <table class="lostark-table">
+                            <thead>
+                            <tr>
+                                <th scope="col">레벨</th>
+                                <th scope="col">이름</th>
+                                <th scope="col">분류</th>
+                                <th scope="col">1수 수익</th>
+                                <th scope="col">2수 수익(휴게 1수)</th>
+                                <th scope="col">휴게 2수 수익</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="contentAvg : ${contentAvg}">
+                                <th scope="row" th:text="${contentAvg.level}"></th>
+                                <td th:text="${contentAvg.name}"></td>
+                                <td th:text="${contentAvg.category}"></td>
+                                <td th:text="${contentAvg.availablePrice}"></td>
+                                <td th:text="${contentAvg.availablePrice * 2}"></td>
+                                <td th:text="${contentAvg.availablePrice * 4}"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="lostark-wrap">
+                    <div class="lostark-wrap text-box">
+                        <strong>일일컨텐츠 수익</strong>
+                        <p>카오스 던전 : 파괴석, 수호석, 보석, 골드(골드&보스방)</p>
+                        <p>가디언 토벌 : 파괴석, 수호석, 돌파석</p>
+                    </div>
+                    <div class="lostark-table-wrap">
+                        <table class="lostark-table">
+                            <thead>
+                            <tr>
+                                <th scope="col">레벨</th>
+                                <th scope="col">이름</th>
+                                <th scope="col">분류</th>
+                                <th scope="col">수익</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="contentAvgTotal : ${contentAvgTotal}">
+                                <th scope="row" th:text="${contentAvgTotal.level}"></th>
+                                <td th:text="${contentAvgTotal.name}"></td>
+                                <td th:text="${contentAvgTotal.category}"></td>
+                                <td th:text="${contentAvgTotal.availablePrice}"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </body>
+    <script src="./js/index.js"></script>
+</html>

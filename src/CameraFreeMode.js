@@ -5,7 +5,7 @@ export function CameraFreeMode({cesiumViewer}){
     let looking = false;
     let startMousePosition, mousePosition;
 
-    const SENS = 0.25; // 마우스 감도
+    const SENS = 0.5; // 마우스 감도
      // 마우스 회전 감도와 피치 한계
     const PITCH_MIN = Cesium.Math.toRadians(-89.0);
     const PITCH_MAX = Cesium.Math.toRadians( 89.0);

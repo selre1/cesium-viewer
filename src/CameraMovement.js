@@ -20,124 +20,6 @@ const VIEW_PRESETS = {
 };
 
 /*
-* 지하에서 수평상태로 바라본 후 모델 클릭시 자연스러운 슬라이딩 이동 가능
-* 카메라는 사용자가 바라보는 상태 그대로 유지, 높이 유지
-*/
-export function moveSlidingDirection(viewer,movement){
-    const scene = viewer.scene;
-    if (!scene.pickPositionSupported) return;
-
-    const cartesian = scene.pickPosition(movement.position);
-    if (!Cesium.defined(cartesian)) return;
-
-    const globe     = scene.globe;
-    const ellipsoid = globe.ellipsoid;
-
-    const clickCarto  = ellipsoid.cartesianToCartographic(cartesian);
-    const cameraCarto = ellipsoid.cartesianToCartographic(viewer.camera.position);
-
-    // 카메라의 현재 높이 유지
-    const destCarto = new Cesium.Cartographic(
-        clickCarto.longitude,
-        clickCarto.latitude,
-        cameraCarto.height
-    );
-    const dest = ellipsoid.cartographicToCartesian(destCarto);
-
-    viewer.camera.flyTo({
-        destination: dest,
-        orientation: {
-            heading: viewer.camera.heading,
-            pitch:   viewer.camera.pitch,
-            roll:    viewer.camera.roll
-        },
-        duration: 0.7,
-        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
-    });
-}
-
-// 모델클릭 시 해당 모델로 카메라 이동
-// 마우스의 노말벡터 방향으로 카메라 방향이 이동하기 때문에 카메라가 휙 돌아가는 현상 발생
-export function moveNormalDirection(viewer, movement, model){
-       const scene  = viewer.scene;
-        const camera = viewer.camera;
-
-        if (!scene.pickPositionSupported) {
-            return;
-        }
-
-        // 클릭한 위치(현재 화면에서 보이는 표면 위치)
-        const target = scene.pickPosition(movement.position);
-        if (!Cesium.defined(target)) {
-            return;
-        }
-
-        // 모델 전체 반지름
-        const rawRadius = (model && model.boundingSphere)
-            ? model.boundingSphere.radius
-            : 10.0; // fallback
-
-        // 현재 카메라와 클릭 지점 사이 거리
-        const currentDistance = Cesium.Cartesian3.distance(camera.position, target);
-
-        // 화면에 꽉 차게 만들 이상적인 거리 (건물 전체 기준)
-        const fovy = camera.frustum.fovy || Cesium.Math.toRadians(60.0);
-        let fitDistance = (rawRadius / Math.sin(fovy / 2.0)) * 1.1; // 여유 10%
-
-        // 계단 같이 내부 요소를 눌렀을 때
-        //    건물 전체를 보기 위해 뒤로 쭉 빠지지 않도록
-        //     지금보다 더 멀리는 가지 않게 제한
-        fitDistance = Math.min(fitDistance, currentDistance);
-
-        // 너무 멀거나, 너무 코앞까지 붙지 않게 클램프
-        //  dMin / dMax => 사용성에 따라 조절 (단위: meter 정도)
-        const dMin = 3.0;    // 실내 볼 때 최소 거리
-        const dMax = 100.0;  // 건물 전체 볼 때도 이 이상은 안 멀어지게
-        fitDistance = Cesium.Math.clamp(fitDistance, dMin, dMax);
-
-        // 카메라 → 타겟 방향(정면 방향)
-        const dirCamToTarget = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.subtract(
-                target,
-                camera.position,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        // 타겟 기준으로 정면에서 fitDistance만큼 떨어진 위치
-        const newPosition = Cesium.Cartesian3.add(
-            target,
-            Cesium.Cartesian3.multiplyByScalar(
-                dirCamToTarget,
-                -fitDistance,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        // 새 위치에서 타겟을 정확히 바라보는 direction
-        const newDirection = Cesium.Cartesian3.normalize(
-            Cesium.Cartesian3.subtract(
-                target,
-                newPosition,
-                new Cesium.Cartesian3()
-            ),
-            new Cesium.Cartesian3()
-        );
-
-        camera.flyTo({
-            destination: newPosition,
-            orientation: {
-                direction: newDirection,
-                up: camera.up   // 기존 상단 방향 유지 (화면 기울기 유지)
-            },
-            duration: 0.7,
-            easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
-        });
-}
-
-/*
 * 모델의 사이즈에 맞춰서 카메라 이동
 * 카메라 위치 자세 유지 o
 * pivot 불가
@@ -171,7 +53,7 @@ export function flyDirectionStayFitModel(viewer, model){
     // 너무 가깝거나 너무 멀지 않게 한번 더 클램프
     const dMin = 3.0;    // 실내용 너무 붙지 않게
     const dMax = 50.0;  // 너무 멀어지지 않게 
-    range = Cesium.Math.clamp(range, dMin, dMax);
+    //range = Cesium.Math.clamp(range, dMin, dMax);
 
     const currentDistance = Cesium.Cartesian3.distance(camera.position, center);
     if (Cesium.defined(currentDistance) && isFinite(currentDistance)) {
@@ -210,58 +92,6 @@ export function flyDirectionStayFitModel(viewer, model){
     });
 }
 
-/*
-* 모델의 사이즈에 맞춰서 카메라 이동
-* 카메라 위치 자세 유지 x
-*/
-export function flyPivotFitModel(viewer, model){
-    if (!viewer || !model) return;
-
-    const camera = viewer.camera;
-
-    // 모델의 BoundingSphere
-    let bs = model._boundingSphere || model.boundingSphere;
-    if (!bs) return;
-
-    const radius = bs.radius || 10.0;
-
-    // 화면에 꽉 차게 들어오도록 거리 계산
-    const frustum = camera.frustum;
-    const fovy    = frustum.fovy || Cesium.Math.toRadians(60.0);
-    const aspect  = frustum.aspectRatio
-        || (viewer.canvas.clientWidth / viewer.canvas.clientHeight);
-
-    const fovx    = 2.0 * Math.atan(Math.tan(fovy / 2.0) * aspect);
-    const distV   = radius / Math.sin(fovy / 2.0);
-    const distH   = radius / Math.sin(fovx / 2.0);
-    let fitDistance = Math.max(distV, distH) * 1.1; // 여유 10%
-
-    // 거리 클램프
-    const dMin = 3.0;
-    const dMax = 50.0;
-    fitDistance = Cesium.Math.clamp(fitDistance, dMin, dMax);
-
-    // 현재 카메라 heading/pitch 가져오기
-    let heading = camera.heading;
-    let pitch   = camera.pitch;
-
-    const minPitch = Cesium.Math.toRadians(-80);
-    const maxPitch = Cesium.Math.toRadians(-10);
-    pitch = Cesium.Math.clamp(pitch, minPitch, maxPitch);
-
-    const offset = new Cesium.HeadingPitchRange(
-        heading,
-        pitch,
-        fitDistance
-    );
-
-    // Cesium 내장 로직으로 fly + pivot 설정
-    camera.flyToBoundingSphere(bs, {
-        offset,
-        duration: 0.7,
-        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
-    });
-}
 
 export function flyToTilesetsWithPreset(
   viewer,
@@ -286,101 +116,48 @@ export function flyToTilesetsWithPreset(
   });
 }
 
+export function flyWalkModeLookAt(viewer, movement) {
+    function computeHeadingFromTo(startCarto, endCarto) {
+        const dLon = endCarto.longitude - startCarto.longitude;
 
-// 클릭한 화면 위치로 "포커스 + 피벗" 세팅하는 함수
-export function flyToMousePosition(viewer, movement, options = {}) {
-    const scene  = viewer.scene;
-    const camera = viewer.camera;
+        const y = Math.sin(dLon) * Math.cos(endCarto.latitude);
+        const x =
+            Math.cos(startCarto.latitude) * Math.sin(endCarto.latitude) -
+            Math.sin(startCarto.latitude) * Math.cos(endCarto.latitude) * Math.cos(dLon);
 
-    // 1) 화면 좌표 → 3D 위치
-    let target = scene.pickPosition(movement.position);
-    if (!Cesium.defined(target)) {
-        target = scene.camera.pickEllipsoid(
-            movement.position,
-            scene.globe.ellipsoid
-        );
-    }
-    if (!Cesium.defined(target)) {
-        console.warn("클릭한 위치에서 target을 찾을 수 없습니다.");
-        return;
+        let heading = Math.atan2(y, x); // -π~π
+        return Cesium.Math.zeroToTwoPi(heading); // 0~2π 로 변환
     }
 
-    // 2) 현재 카메라 상태 가져오기
-    let heading = camera.heading;
-    let pitch   = camera.pitch;
+  const scene  = viewer.scene;
+  const camera = viewer.camera;
 
-    // 너무 뒤집히지 않게 pitch 제한 (원하는 값으로 조절 가능)
-    const minPitch = Cesium.Math.toRadians(-80.0);
-    const maxPitch = Cesium.Math.toRadians(-10.0);
-    pitch = Cesium.Math.clamp(pitch, minPitch, maxPitch);
+  if (!scene.pickPositionSupported) return;
 
-    // 클릭 지점까지의 거리
-    let range = Cesium.Cartesian3.distance(camera.position, target);
+  const pickedPosition = scene.pickPosition(movement.position);
+  if (!Cesium.defined(pickedPosition)) return;
 
-    // 너무 멀리/가까이 튀지 않게 제한
-    const dMin = options.minDistance ?? 2.0;
-    const dMax = options.maxDistance ?? 80.0;
-    range = Cesium.Math.clamp(range, dMin, dMax);
+  const eyeHeight   = 1;
+  const flyDuration = 1.0;
 
-    // 3) 현재 카메라 direction을 그대로 쓰되,
-    //    target 기준으로 같은 range 만큼 떨어져 있게 새 위치 계산
-    const direction = Cesium.Cartesian3.normalize(
-        camera.direction,
-        new Cesium.Cartesian3()
-    );
+  const destCarto = Cesium.Cartographic.fromCartesian(pickedPosition);
+  destCarto.height += eyeHeight;
 
-    const newPosition = Cesium.Cartesian3.add(
-        target,
-        Cesium.Cartesian3.multiplyByScalar(
-            direction,
-            -range,
-            new Cesium.Cartesian3()
-        ),
-        new Cesium.Cartesian3()
-    );
+  const destination = Cesium.Cartesian3.fromRadians(
+    destCarto.longitude,
+    destCarto.latitude,
+    destCarto.height
+  );
 
-    // up 벡터는 지표면 법선 기준으로 다시 만들기 (롤 꼬이는 거 방지)
-    const ellipsoid = scene.globe.ellipsoid;
-    const worldUp   = ellipsoid.geodeticSurfaceNormal(
-        target,
-        new Cesium.Cartesian3()
-    );
-    const right = Cesium.Cartesian3.normalize(
-        Cesium.Cartesian3.cross(direction, worldUp, new Cesium.Cartesian3()),
-        new Cesium.Cartesian3()
-    );
-    const up = Cesium.Cartesian3.normalize(
-        Cesium.Cartesian3.cross(right, direction, new Cesium.Cartesian3()),
-        new Cesium.Cartesian3()
-    );
+  const startCarto = Cesium.Cartographic.fromCartesian(camera.positionWC);
+  const heading    = computeHeadingFromTo(startCarto, destCarto);
+  const pitch      = camera.pitch; // 그대로 두거나 -0.2 같은 고정값도 가능
+  const roll       = 0.0;
 
-    // 4) 먼저 flyTo로 자연스럽게 이동
-    camera.flyTo({
-        destination: newPosition,
-        orientation: {
-            direction: Cesium.Cartesian3.normalize(
-                Cesium.Cartesian3.subtract(
-                    target,
-                    newPosition,
-                    new Cesium.Cartesian3()
-                ),
-                new Cesium.Cartesian3()
-            ),
-            up
-        },
-        duration: options.duration ?? 0.6,
-        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT,
-        complete() {
-            // 5) flyTo가 끝난 뒤,
-            //    "이제부터 회전 pivot은 target이다"라고 고정해버림
-            const h = camera.heading;
-            const p = Cesium.Math.clamp(camera.pitch, minPitch, maxPitch);
-            const r = Cesium.Cartesian3.distance(camera.position, target);
-
-            camera.lookAt(
-                target,
-                new Cesium.HeadingPitchRange(h, p, r)
-            );
-        }
-    });
+  camera.flyTo({
+    destination,
+    orientation: { heading, pitch, roll },
+    duration: flyDuration,
+    easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
+  });
 }

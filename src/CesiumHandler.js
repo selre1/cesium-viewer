@@ -3,7 +3,7 @@ import {
   INSPECTOR_STYLE_ID, INSPECTOR_CSS, INSPECTOR_HTML,
   COMPASS_SVG
 } from "./UiTemplates.js";
-import {flyDirectionStayFitModel, flyToMousePosition, flyToTilesetsWithPreset} from "./CameraMovement.js";
+import {flyDirectionStayFitModel, flyToTilesetsWithPreset, flyWalkModeLookAt} from "./CameraMovement.js";
 import { CameraFreeMode }   from "./CameraFreeMode.js";
 import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
@@ -30,7 +30,7 @@ var CesiumHandler = (function(){
             text: undefined,
             iconSrc: undefined,
             length: 100.0,
-        },
+        }
     };
     let loaded_3Dtilesets = []; // 현재 scene에 추가된 tilesets
 
@@ -73,7 +73,6 @@ var CesiumHandler = (function(){
         //useDefaultRenderLoop: false // 자동 렌더링 여부
         // requestRenderMode: true, // scene을 업데이트하지 않으면 새 프레임을 렌더링하지 않도록 설정
         terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
-        //terrain: new Cesium.Terrain(Cesium.CesiumTerrainProvider.fromUrl('./terrain/tr')),
         baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
             url: 'https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
             //url: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
@@ -110,7 +109,8 @@ var CesiumHandler = (function(){
         MEASURE_VERTICAL: 'measure_vertical',
         MEASURE_AREA_GROUND: 'measure_area_ground',
         MEASURE_AREA_SURFACE: 'measure_area_surface',
-        MEASURE_CROSS_SECTION_AREA : 'measure_cross_section_area'
+        MEASURE_CROSS_SECTION_AREA : 'measure_cross_section_area',
+        INSPINSTPOPBTN : 'inspInstPopBtn'
     };
 
     // 초기 기본 모드 정의
@@ -132,59 +132,61 @@ var CesiumHandler = (function(){
         if (toolBarApi) toolBarApi.showMountToolBar();
 
         switch (nextMode) {
-        case Mode.NORMAL:
-            infoBoxEnable();
-            inspectBoxEnable();
-            break;
+            case Mode.NORMAL:
+                infoBoxEnable();
+                inspectBoxEnable();
+                break;
 
-        case Mode.CAMERA_FREE:
-            if (toolBarApi) toolBarApi.hiddenMountToolBar();
-            cameraFree.enable();
-            break;
+            case Mode.CAMERA_FREE:
+                if (toolBarApi) toolBarApi.hiddenMountToolBar();
+                cameraFree.enable();
+                break;
 
-        case Mode.ORBIT:
-            if (toolBarApi) toolBarApi.hiddenMountToolBar();
-            cameraOrbitMode.enable(unionTilesetCenter);
-            break;
+            case Mode.ORBIT:
+                if (toolBarApi) toolBarApi.hiddenMountToolBar();
+                cameraOrbitMode.enable(unionTilesetCenter);
+                break;
 
-        case Mode.MEASURE_POINT:
-            measurement.start("P");
-            break;
+            case Mode.MEASURE_POINT:
+                measurement.start("P");
+                break;
 
-        case Mode.MEASURE_DISTANCE:
-            measurement.start("D");
-            break;
-        
-        case Mode.MEASURE_VERTICAL:
-            alert('서비스 준비중입니다.');
-            return;
-            measurement.start("V");
-            break;
+            case Mode.MEASURE_DISTANCE:
+                measurement.start("D");
+                break;
+            
+            case Mode.MEASURE_VERTICAL:
+               // alert('수직 측정 기능 준비중입니다.');
+                //return;
+                measurement.start("V");
+                break;
 
-        case Mode.MEASURE_AREA_GROUND:
-            measurement.setAreaMode("ground");
-            measurement.start("A");
-            break;
+            case Mode.MEASURE_AREA_GROUND:
+                measurement.setAreaMode("ground");
+                measurement.start("A");
+                break;
 
-        case Mode.MEASURE_AREA_SURFACE:
-            measurement.setAreaMode("surface");
-            measurement.start("A");
-            break;
+            case Mode.MEASURE_AREA_SURFACE:
+                measurement.setAreaMode("surface");
+                measurement.start("A");
+                break;
 
-        case Mode.MEASURE_CROSS_SECTION_AREA:
-            measurement.start("C");
-            break;
+            case Mode.MEASURE_CROSS_SECTION_AREA:
+                measurement.start("C");
+                break;
+            
+            case Mode.INSPINSTPOPBTN:
+                break;
         }
-
-        
 
         currentMode = nextMode;
     }
 
-    async function init(elementId, { tilesetUrl, propertyUrls, info} = {}) {
-        viewer = initCesiumViewer(elementId);
+    async function init(elementId, { tilesetUrl, propertyUrls, info, terrain, baseLayer} = {}) {
+        viewer = initCesiumViewer(elementId,terrain, baseLayer);
         translucencyUpdate(); // 지하 특화 환경
         createCompas(); // 나침반 생성
+
 
         cameraFree  = CameraFreeMode({ cesiumViewer: viewer });
         cameraOrbitMode = CameraOrbitMode({cesiumViewer: viewer});
@@ -221,10 +223,17 @@ var CesiumHandler = (function(){
         return viewer;
     }
 
-    function initCesiumViewer(elementId){
+    function initCesiumViewer(elementId, terrain, baseLayer){
         if (!window.Cesium) { console.error('CesiumJS not loaded.'); return; }
         var ph = document.querySelector('.viewer-placeholder');
         if (ph) ph.remove();
+
+        if(terrain){
+            DefaultOption.terrain =  createTerrain(terrain);
+        }
+        if(baseLayer){
+            DefaultOption.baseLayer = createBaseLayer(baseLayer);
+        }
     
         const cesiumViewer = new Cesium.Viewer(elementId, DefaultOption);
         //cesiumViewer.scene.fxaa = false;
@@ -235,7 +244,7 @@ var CesiumHandler = (function(){
         cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // 카메라 충돌 감지 비활성화(지하를 탐색하기 위함)
         cesiumViewer.scene.globe.translucency.frontFaceAlphaByDistance = new Cesium.NearFarScalar( 400.0, 0.0, 2000.0, 1.0);
        //cesiumViewer.resolutionScale = 0.75; // 해상도 낮추기
-        cesiumViewer.scene.globe.baseColor = new Cesium.Color(0, 0, 0, 1);
+        //cesiumViewer.scene.globe.baseColor = new Cesium.Color(0, 0, 0, 1);
         $( '.cesium-viewer-bottom' ).remove();
     
         if (!handler) handler = new Cesium.ScreenSpaceEventHandler(cesiumViewer.canvas);
@@ -342,7 +351,6 @@ var CesiumHandler = (function(){
             unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);
             const rect = boundingSphereToRectangle(unionTilesetCenter,viewer.scene.globe.ellipsoid);
             viewer.scene.globe.cartographicLimitRectangle = rect;
-            
 
             flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 600);
 
@@ -370,11 +378,42 @@ var CesiumHandler = (function(){
             ...currentModelConfig ,
             ...config,
             info: {
-            ...currentModelConfig .info,
+            ...currentModelConfig.info,
             ...(config.info || {}),
             },
         };
         return applyModelConfig(currentModelConfig);
+    }
+
+    function createTerrain(url){
+        const provider = Cesium.CesiumTerrainProvider.fromUrl(url)
+        return new Cesium.Terrain(provider);
+    }
+
+    function updateTerrain(url) {
+        const terrain = createTerrain(url);
+        viewer.terrain = terrain;
+    }
+
+    function createBaseLayer(url) {
+        const provider = new Cesium.UrlTemplateImageryProvider({
+            url,
+            minimumLevel: 0,
+            maximumLevel: 19,
+            rectangle: Cesium.Rectangle.fromDegrees(-180, -90, 180, 90),
+        });
+        return new Cesium.ImageryLayer(provider);
+    }
+
+    function updateBaseLayer(url) {
+        const layers = viewer.imageryLayers;
+        // 기존 baseLayer 제거
+        if (DefaultOption.baseLayer) {
+            layers.remove(DefaultOption.baseLayer, true);
+            DefaultOption.baseLayer = null;
+        }
+        const layer = createBaseLayer(url);
+        DefaultOption.baseLayer = layers.add(layer, 0);
     }
 
     async function renderingAllTileset({url}) {
@@ -762,42 +801,40 @@ var CesiumHandler = (function(){
 
     function createCompas(){
         const $wrap = createElement();
-    const $svg = $wrap.find('svg');
+        const $svg = $wrap.find('svg');
 
-    // 회전 중심을 정중앙으로
-    $svg.css({
-        width: '100%',
-        height: '100%',
-        'transform-origin': '50% 50%',
-        'will-change': 'transform'
-    });
+        $svg.css({
+            width: '100%',
+            height: '100%',
+            'transform-origin': '50% 50%',
+            'will-change': 'transform'
+        });
 
-    // 카메라 heading에 맞춰 회전
-    viewer.scene.postRender.addEventListener(() => {
-        const heading = viewer.camera.heading; // 라디안
-        // 일반적으로 나침반은 카메라 반대방향으로 돌려서 "북"이 항상 위로 보이게 함
-        $svg.css('transform', `rotateZ(${-heading}rad)`);
-    });
+        // 카메라 heading에 맞춰 회전
+        viewer.scene.postRender.addEventListener(() => {
+            const heading = viewer.camera.heading; // 라디안
+            // 일반적으로 나침반은 카메라 반대방향으로 돌려서 북쪽 항상 위로 보이게 함
+            $svg.css('transform', `rotateZ(${-heading}rad)`);
+        });
 
-    // 클릭 이벤트 (지금은 비활성)
-    $wrap.on('click', () => {
-        return;
-        // if (!Cesium.defined(iconEntity)) return;
-        // viewer.zoomTo(opt.iconEntity, -90, 1000);
-    });
+        $wrap.on('click', () => {
+            return;
+            // if (!Cesium.defined(iconEntity)) return;
+            // viewer.zoomTo(opt.iconEntity, -90, 1000);
+        });
 
-    const $renderContents = $(viewer.container);
-    $renderContents.append($wrap);
+        const $renderContents = $(viewer.container);
+        $renderContents.append($wrap);
 
-    function createElement() {
-        const $div = $(`
-            <div class="hud-compass" 
-                 style="position:absolute; top:10px; right:10px; z-index:10000; width:64px; height:64px; pointer-events:auto;">
-                ${COMPASS_SVG}
-            </div>
-        `);
-        return $div;
-    }
+        function createElement() {
+            const $div = $(`
+                <div class="hud-compass" 
+                    style="position:absolute; top:10px; right:10px; z-index:10000; width:64px; height:64px; pointer-events:auto;">
+                    ${COMPASS_SVG}
+                </div>
+            `);
+            return $div;
+        }
     }
 
     function translucencyUpdate() {
@@ -819,17 +856,16 @@ var CesiumHandler = (function(){
 
         try {
             const tileset = await Cesium.Cesium3DTileset.fromUrl(url, {
-                shadows: Cesium.ShadowMode.ENABLED,
-                // skipLevelOfDetail: true,
-                // baseScreenSpaceError: 2048,
-                // skipScreenSpaceErrorFactor: 32,
-                // skipLevels: 1,
-                // immediatelyLoadDesiredLevelOfDetail: false,
-                // loadSiblings: false,
-                // dynamicScreenSpaceError: true,
-                // dynamicScreenSpaceErrorDensity: 2.0e-4,
-                // dynamicScreenSpaceErrorFactor: 24.0,
-                // dynamicScreenSpaceErrorHeightFalloff: 0.25
+                skipLevelOfDetail: true,
+                baseScreenSpaceError: 2048,
+                skipScreenSpaceErrorFactor: 32,
+                skipLevels: 1,
+                immediatelyLoadDesiredLevelOfDetail: false,
+                loadSiblings: false,
+                dynamicScreenSpaceError: true,
+                dynamicScreenSpaceErrorDensity: 2.0e-4,
+                dynamicScreenSpaceErrorFactor: 24.0,
+                dynamicScreenSpaceErrorHeightFalloff: 0.25
 
                 // maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
                 // skipLevelOfDetail: true,
@@ -876,6 +912,10 @@ var CesiumHandler = (function(){
                 return [];
             }
             const rootData = await response.json();
+            if(rootData?.asset?.extras?.ion) {
+                 const tileset = await createTileset(rootTilesetUrl);
+                 return [tileset];
+            }
             const children = rootData.root?.children || [];
             console.log(`타입별 Tileset: ${children.length}개`);
 
@@ -885,8 +925,7 @@ var CesiumHandler = (function(){
             for (const child of children) {
                 if (child.content && child.content.uri) {
                     const childUrl = baseUrl + child.content.uri;
-                    const tilesetName = child.content.uri.replace('_tileset.json', '').replace('/tileset.json', '');
-                    const tileset = await createTileset(childUrl, tilesetName);
+                    const tileset = await createTileset(childUrl);
                     if (tileset) {
                         loadedTilesets.push(tileset);
                     }
@@ -1003,14 +1042,12 @@ var CesiumHandler = (function(){
 
         // 탐색모드 버튼
         $cameraFree.on('click', () => {
-            alert('해당 서비스 준비중입니다.');
-            return;
            // 이미 탐색모드면 NORMAL로, 아니면 CAMERA_FREE로
             const next = (currentMode === Mode.CAMERA_FREE)
                 ? Mode.NORMAL
                 : Mode.CAMERA_FREE;
             setMode(next);
-             syncModeButtons();
+            syncModeButtons();
         });
 
         // 회전모드 버튼
@@ -1135,7 +1172,6 @@ var CesiumHandler = (function(){
         state.color       = undefined;
         state.blendMode   = undefined;
         state.blendAmount = undefined;
-
     }
 
     function updateHoverHighlight(pickedModel){
@@ -1264,12 +1300,12 @@ var CesiumHandler = (function(){
         *  hover 하이라이트 업데이트
         *    - 이전 hover 복구 + 새 hover 적용까지 처리
         */
-        updateHoverHighlight(pickedModel);
+        //updateHoverHighlight(pickedModel);
 
         /*
         * 현재 마우스 아래 icon entity (설명서) 찾기
         */
-       let pickedEntity;
+        let pickedEntity;
         if(!pickedEntity) pickedEntity = scene.pick(movement.endPosition);
         if (Cesium.defined(pickedEntity) && pickedEntity.id && pickedEntity.id.id === 'entity_icon') {
             showEntityOverlay(pickedEntity.id);
@@ -1312,6 +1348,20 @@ var CesiumHandler = (function(){
         */
         const pickResult = pickModelFeatureIgnoringMeasure(movement.position);
 
+        //flyWalkModeLookAt(viewer,movement); //해당 위치이동
+        let pickedEntity;
+        if(!pickedEntity) pickedEntity = scene.pick(movement.position);
+        if (Cesium.defined(pickedEntity) && pickedEntity.id && pickedEntity.id.id === 'entity_icon') {
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(126.87345863222825, 37.52793533575197, 2.7866826672040563),
+                orientation: {
+                    heading: 1.568291123130754,
+                    pitch: -0.10286155859012203,
+                    roll: 0,
+                }
+            });
+        } 
+
         //이전 모델 선택 하이라이트 해제
         restoreModelState(selectedState);
         viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);// 객체 클릭 후 pivot된 카메라 해제
@@ -1338,7 +1388,8 @@ var CesiumHandler = (function(){
                 Cesium.Color.CYAN.withAlpha(0.3),
                 0.5
             );
-            flyDirectionStayFitModel(viewer,model);
+            
+            //flyDirectionStayFitModel(viewer,model);
             updateInspectorToggleButton(model);
         }else{
             updateInspectorToggleButton(null);
@@ -1377,9 +1428,26 @@ var CesiumHandler = (function(){
         }
     }
 
+    function applyWebMapService(url,layers){
+        let wms = new Cesium.WebMapServiceImageryProvider({
+            url: url,
+            parameters: {
+                format: 'image/png',
+                transparent:'true',
+                tiled: true
+            },
+            layers : layers
+        });
+        return viewer.imageryLayers.addImageryProvider(wms);
+    }
+
     return {
         init,
-        updateModelConfig
+        setMode,
+        updateTerrain,
+        updateBaseLayer,
+        updateModelConfig,
+        applyWebMapService
     };
 })();
 

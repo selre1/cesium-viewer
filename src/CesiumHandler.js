@@ -85,6 +85,13 @@ var CesiumHandler = (function(){
                 Cesium.Math.toRadians(180.0),
                 Cesium.Math.toRadians(90.0))
         }))
+        // baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+        //     url: 'http://175.116.181.151:29090/tile/{z}/{x}/{y}.png',
+        //     minimumLevel: 0,
+        //     maximumLevel: 19,
+        //     tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        //     credit: 'Satellite by TileServer-GL'
+        // }))
     }
 
     // 지하시설물 특화 변수
@@ -398,9 +405,10 @@ var CesiumHandler = (function(){
     function createBaseLayer(url) {
         const provider = new Cesium.UrlTemplateImageryProvider({
             url,
-            minimumLevel: 0,
+             minimumLevel: 0,
             maximumLevel: 19,
-            rectangle: Cesium.Rectangle.fromDegrees(-180, -90, 180, 90),
+            tilingScheme: new Cesium.WebMercatorTilingScheme(),
+            credit: 'GIT'
         });
         return new Cesium.ImageryLayer(provider);
     }

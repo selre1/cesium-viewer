@@ -86,7 +86,7 @@ html, body {
                 length: 100
             },
             terrain: "http://175.116.181.151:29090/dem/yangchen/",
-            baseLayer : "http://175.116.181.151:29090/tile/{z}/{x}/{y}.png"
+            baseLayer : "http://175.116.181.151:29090/tile/{z}/{x}/{reverseY}.png"
         };
         const app = await GIT("viewerRoot", config);
         console.log(app);

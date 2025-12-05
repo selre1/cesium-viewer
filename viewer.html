@@ -73,20 +73,24 @@ html, body {
     try{
         const config = {
             tilesetUrl:[
-                "http://175.116.181.151:29090/3d-tileset/mockdong/exterior/draco_glb/tileset.json",
-                "http://175.116.181.151:29090/3d-tileset/mockdong/interior/draco_glb/tileset.json"
+                "http://175.116.181.151:6095/3d-tileset/mockdong/exterior/glb/tileset.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/interior/glb/tileset.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/final4/glb/tileset.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/temp/glb/tileset.json"
             ],
             propertyUrls: [
-                "http://175.116.181.151:29090/3d-tileset/mockdong/exterior/properties.json",
-                "http://175.116.181.151:29090/3d-tileset/mockdong/interior/properties.json"
+                "http://175.116.181.151:6095/3d-tileset/mockdong/exterior/properties.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/interior/properties.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/final4/properties.json",
+                "http://175.116.181.151:6095/3d-tileset/mockdong/temp/properties.json"
             ],
             info: {
                 text: "서울시 공동구",
                 iconSrc: "./src/under.png",
                 length: 100
             },
-            terrain: "http://175.116.181.151:29090/dem/yangchen/",
-            baseLayer : "http://175.116.181.151:29090/tile/{z}/{x}/{reverseY}.png"
+            terrain: "http://175.116.181.151:6095/dem/yangchen/",
+            baseLayer : "http://175.116.181.151:6095/tile/{z}/{x}/{reverseY}.png"
         };
         const app = await GIT("viewerRoot", config);
         console.log(app);

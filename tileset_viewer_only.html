@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Model Viewer UI – Left Rail + Slide Drawer</title>
+  <link rel="stylesheet" href="https://unpkg.com/tachyons@4.12.0/css/tachyons.min.css" />
+  <!-- <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css"rel="stylesheet"> -->
+   <link href="./cesium/Widgets/widgets.css"rel="stylesheet"> 
+  <style>
+
+html, body {
+  height: 100%;
+}
+
+
+/* 기존 viewerRoot 스타일 */
+#viewerRoot{
+  height:100%;
+  width:100%;
+  position:relative;
+  display:block;
+  overflow:hidden;
+}
+
+   
+  </style>
+
+
+<style>
+</style>
+  <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
+  <script src="./cesium/Cesium.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+</body>
+ <script>
+     Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
+        
+    const viewer = new Cesium.Viewer("cesiumContainer",{
+        terrain: Cesium.Terrain.fromWorldTerrain()
+    });
+
+
+
+     try {
+            const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/pg/tileset.json', {
+                skipLevelOfDetail: true,
+                baseScreenSpaceError: 2048,
+                skipScreenSpaceErrorFactor: 32,
+                skipLevels: 1
+            });
+            viewer.scene.primitives.add(tileset);
+
+            viewer.zoomTo(tileset);
+        } catch (error) {
+            console.error(`Tileset 생성 중 오류 발생: ${error}`);
+            return undefined;
+        }
+</script> 
+</html>

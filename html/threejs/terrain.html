@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GeoTIFF → Three.js Terrain</title>
+  <style> body { margin:0; overflow:hidden; } canvas { display:block; } </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
+      "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/controls/OrbitControls.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <script src="js/geotiff.js"></script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+    async function main() {
+      const tiff = await GeoTIFF.fromUrl('./dem/4326_dem.tif');   // GeoTIFF 파일 경로 or URL
+      const image = await tiff.getImage();
+      const rasters = await image.readRasters();
+      const width = image.getWidth();
+      const height = image.getHeight();
+      const data = rasters[0].map(v => (v <= -30000 ? -50 : v)); // 첫 번째 밴드 가정 → 높이값 배열
+
+      // 3D scene setup
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 10000);
+      camera.position.set(0, 200, 500);
+      camera.lookAt(0, 0, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.append(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+
+
+      const MAX_SEGMENTS = 256;
+
+    // 세그먼트 수를 제한 (최대 256 x 256)
+    const xSegments = Math.min(width - 1, MAX_SEGMENTS);
+    const ySegments = Math.min(height - 1, MAX_SEGMENTS);
+      // Plane geometry: width/height (ex: 360, 180) or 비율 맞춤
+      const geometry = new THREE.PlaneGeometry(width, height, xSegments, ySegments );
+      const verts = geometry.attributes.position.array;
+const xStep = width / xSegments;
+const yStep = height / ySegments;
+    for (let y = 0; y <= ySegments; y++) {
+        for (let x = 0; x <= xSegments; x++) {
+            const i = Math.floor(y * yStep) * width + Math.floor(x * xStep);
+            const j = (y * (xSegments + 1) + x) * 3;
+           verts[j + 2] = data[i] * 2;
+        }
+    }
+      geometry.computeVertexNormals();
+
+      const material = new THREE.MeshStandardMaterial({ color: 0x88cc88, wireframe: false });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = 100;
+      scene.add(mesh);
+
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(100, 200, 100);
+      scene.add(light);
+      scene.add(new THREE.AmbientLight(0x666666));
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    main().catch(console.error);
+  </script>
+</body>
+</html>

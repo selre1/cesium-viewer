@@ -41,13 +41,32 @@ html, body {
      Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
         
     const viewer = new Cesium.Viewer("cesiumContainer",{
-        terrain: Cesium.Terrain.fromWorldTerrain()
+       // terrain: Cesium.Terrain.fromWorldTerrain()
     });
+    viewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
+        viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
+/*
+{
+  "color": {
+    "conditions": [
+      [
+        "${height} >= 20",
+        "color('purple', 0.5)"
+      ]
+    ]
+  }
+}
+*/
+viewer.scene.globe.translucency.enabled = true;
 
+     
 
+ 
 
+    async function create(params) {
      try {
-            const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/pg/tileset.json', {
+            const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/py/tileset.json', {
                 skipLevelOfDetail: true,
                 baseScreenSpaceError: 2048,
                 skipScreenSpaceErrorFactor: 32,
@@ -59,6 +78,9 @@ html, body {
         } catch (error) {
             console.error(`Tileset 생성 중 오류 발생: ${error}`);
             return undefined;
-        }
+        } 
+    }
+    create();
+     
 </script> 
 </html>

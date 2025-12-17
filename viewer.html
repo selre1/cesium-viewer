@@ -92,7 +92,7 @@ html, body {
             terrain: "http://175.116.181.151:6095/dem/yangchen/",
             baseLayer : "http://175.116.181.151:6095/tile/{z}/{x}/{reverseY}.png"
         };
-        const app = await GIT("viewerRoot", config);
+        const app = await GIT("viewerRoot");
         console.log(app);
         /*
           addWebMapService

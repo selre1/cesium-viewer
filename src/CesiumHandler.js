@@ -9,8 +9,7 @@ import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
 
 var CesiumHandler = (function(){
-    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
-        
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzBlNTkwZC0yMWE3LTQzMzktYTE3YS0wMDhhYTU0OWFlMzciLCJpZCI6MzY0NjczLCJpYXQiOjE3NjQzMDE3ODR9.qL8L4zxg9x4yIQR6G-SPIXlPfegO7GkpvZ1GsupN4_4";
     let viewer, handler;
     let infoBoxEls = {}, infoBoxEnabled = false;
     let inspectorBoxEl, inspectorLists, properties = {}, 
@@ -73,18 +72,18 @@ var CesiumHandler = (function(){
         //useDefaultRenderLoop: false // 자동 렌더링 여부
         // requestRenderMode: true, // scene을 업데이트하지 않으면 새 프레임을 렌더링하지 않도록 설정
         terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
-        baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
-            url: 'https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
-            //url: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
-            subdomains: 'base',
-            minimumLevel: 0,
-            maximumLevel: 19,
-            rectangle: new Cesium.Rectangle(
-                Cesium.Math.toRadians(-180.0),
-                Cesium.Math.toRadians(-90.0),
-                Cesium.Math.toRadians(180.0),
-                Cesium.Math.toRadians(90.0))
-        }))
+        // baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+        //     url: 'https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
+        //     //url: 'https://xdworld.vworld.kr/2d/Base/service/{z}/{x}/{y}.png',
+        //     subdomains: 'base',
+        //     minimumLevel: 0,
+        //     maximumLevel: 19,
+        //     rectangle: new Cesium.Rectangle(
+        //         Cesium.Math.toRadians(-180.0),
+        //         Cesium.Math.toRadians(-90.0),
+        //         Cesium.Math.toRadians(180.0),
+        //         Cesium.Math.toRadians(90.0))
+        // }))
         // baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
         //     url: 'http://175.116.181.151:29090/tile/{z}/{x}/{y}.png',
         //     minimumLevel: 0,

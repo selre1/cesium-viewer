@@ -919,10 +919,17 @@ var CesiumHandler = (function(){
                 return [];
             }
             const rootData = await response.json();
+
             if(rootData?.asset?.extras?.ion) {
                  const tileset = await createTileset(rootTilesetUrl);
                  return [tileset];
             }
+
+            if(rootData?.asset?.STW){
+                const tileset = await createTileset(rootTilesetUrl);
+                 return [tileset];
+            }
+
             const children = rootData.root?.children || [];
             console.log(`타입별 Tileset: ${children.length}개`);
 

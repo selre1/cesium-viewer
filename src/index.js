@@ -5,8 +5,8 @@ export async function CesiumViewer(target, options = {}) {
   const elementId = typeof target === "string" ? target.replace(/^#/, "") : (target && target.id);
   const viewer = await CesiumHandler.init(elementId, options);
 
-  function update3Dtileset(tilesetUrl, propertyUrls = []) {
-    return CesiumHandler.updateModelConfig(tilesetUrl, propertyUrls);
+  function update3Dtileset(tilesetUrls, propertyUrls = []) {
+    return CesiumHandler.updateModelConfig(tilesetUrls, propertyUrls);
   }
 
   function addWebMapService(url, layers){

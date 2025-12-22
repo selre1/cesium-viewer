@@ -3,4 +3,5 @@
 node_modules
 /model
 /dist
+/docs-site
 *.tif

@@ -1,0 +1,11 @@
+{
+  "source": {
+    "include": ["src"],
+    "exclude": ["node_modules", "dist", "docs-site"]
+  },
+  "opts": {
+    "destination": "docs-site/static/api",
+    "recurse": true,
+    "encoding": "utf8"
+  }
+}

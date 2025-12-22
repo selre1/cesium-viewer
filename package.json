@@ -7,7 +7,11 @@
   "module": "dist/cesium-viewer.esm.js",
   "scripts": {
     "start": "live-server --host=localhost --port=8000 --open=viewer.html",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "docs:api": "jsdoc -c jsdoc.json",
+    "docs:start": "npm run docs:api && npm --prefix docs-site run start",
+    "docs:build": "npm run docs:api && npm --prefix docs-site run build",
+    "docs:serve": "npm --prefix docs-site run serve -- --build --port 8088 --host localhost"
   },
   "dependencies": {
     "@rollup/plugin-terser": "^0.4.4",
@@ -18,6 +22,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "jsdoc": "^4.0.5",
     "live-server": "^1.2.2",
     "rollup": "^4.53.3"
   }

@@ -11,9 +11,6 @@ const umdConfig = {
       name: "GIT", // 노출될 이름
       sourcemap: false,
   },
-  // 현재 소스는 Cesium, jQuery를 import 하지 않고 window 글로벌로 쓰므로
-  // external 설정이 필수는 아님. (작성된 코드만 번들됨)
-  // 추후 'import Cesium from "cesium"' 같이 바꾸면 여기서 external/globals 세팅해줘야 함.
   external: [],
   plugins: [
     resolve({

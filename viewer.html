@@ -39,7 +39,7 @@ html, body {
     
 </body>
 
- <script type="module">
+ <!-- <script type="module">
   import CesiumViewer from './src/index.js';
   var gitViewer = gitViewer || {};
   const config = {
@@ -59,8 +59,8 @@ html, body {
  (async function() {
   gitViewer.app = await CesiumViewer("#viewerRoot", config);
  })(); 
-</script> 
- <!-- <script>
+</script>  -->
+ <script>
 (async function() {
   
     if (document.readyState === "loading") {
@@ -75,7 +75,7 @@ html, body {
                 "http://175.116.181.151:6095/tile/test/tileset.json"
             ],
             propertyUrls: [
-
+"http://175.116.181.151:6095/3d-tileset/mockdong/temp/properties.json"
             ],
             info: {
                 text: "서울시 공동구",
@@ -85,7 +85,7 @@ html, body {
             terrain: "",
             baseLayer : ""
         };
-        const app = await GIT("viewerRoot");
+        const app = await GIT("viewerRoot",config);
         console.log(app);
         /*
           addWebMapService
@@ -97,5 +97,5 @@ html, body {
         console.error("GIT.CesiumViewer 초기화 실패", err);
     }
 })();
-</script>  -->
+</script> 
 </html>

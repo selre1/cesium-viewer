@@ -23,7 +23,7 @@ var CesiumHandler = (function(){
     let hoverCheckLastTime = 0;
 
     let currentModelConfig = { // 기본 모델 정보
-        tilesetUrl: null,
+        tilesetUrls: null,
         propertyUrls: [],
         info: {
             text: undefined,
@@ -188,7 +188,7 @@ var CesiumHandler = (function(){
         currentMode = nextMode;
     }
 
-    async function init(elementId, { tilesetUrl, propertyUrls, info, terrain, baseLayer} = {}) {
+    async function init(elementId, { tilesetUrls, propertyUrls, info, terrain, baseLayer} = {}) {
         viewer = initCesiumViewer(elementId,terrain, baseLayer);
         translucencyUpdate(); // 지하 특화 환경
         createCompas(); // 나침반 생성
@@ -217,7 +217,7 @@ var CesiumHandler = (function(){
         createInspectBox();
 
         currentModelConfig = {
-            tilesetUrl: tilesetUrl,
+            tilesetUrls: tilesetUrls,
             propertyUrls: propertyUrls,
             info: info,
         };
@@ -350,8 +350,8 @@ var CesiumHandler = (function(){
         const tasks = [];
 
         // 3D Tileset 로딩
-        if(config.tilesetUrl) {
-            const tilesets = await renderingAllTileset({ url: config.tilesetUrl });
+        if(config.tilesetUrls) {
+            const tilesets = await renderingAllTileset({ url: config.tilesetUrls });
 
             // 해당 위치로 카메라 이동
             unionTilesetCenter = unionAllTilesetsBoundingSphereCompute(tilesets);

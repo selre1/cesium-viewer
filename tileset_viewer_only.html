@@ -67,10 +67,7 @@ viewer.scene.globe.translucency.enabled = true;
     async function create(params) {
      try {
             const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/py_test_material/tileset.json', {
-                skipLevelOfDetail: true,
-                baseScreenSpaceError: 2048,
-                skipScreenSpaceErrorFactor: 32,
-                skipLevels: 1
+               
             });
             viewer.scene.primitives.add(tileset);
 

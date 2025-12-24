@@ -1,0 +1,18 @@
+{
+    "liveServer.settings.ignoreFiles": [
+        "**/.git/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/out/**",
+        "**/output/**",
+        "**/tiles/**",
+        "**/*.tif",
+        "**/*.glb",
+        "**/*.b3dm",
+        "**/*.pnts",
+        "**/*.cmpt",
+        "**/*.map",
+        "**/logs/**"
+    ]
+}

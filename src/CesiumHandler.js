@@ -911,11 +911,6 @@ var CesiumHandler = (function(){
     }
 
     async function loadAllTilesets(rootTilesetUrl) {
-        const rootUrl = new URL(await Promise.resolve(rootTilesetUrl));
-
-        //const rootData = await 
-
-
         try {
             const url = await Promise.resolve(rootTilesetUrl);
             const response = await fetch(url);

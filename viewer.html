@@ -43,8 +43,8 @@ html, body {
   import CesiumViewer from './src/index.js';
   var gitViewer = gitViewer || {};
   const config = {
-    tilesetUrl:[
-          "./output/py_test_material/tileset.json"
+    tilesetUrls:[
+          "./output/test/test49/tileset.json",
     ],
     propertyUrls: [
          
@@ -54,7 +54,9 @@ html, body {
           text: "서울시 공동구입니다.",
           iconSrc: "./src/under.png",
           length: 100
-    }
+    },
+    terrain: "",
+    baseLayer : ""
   };
  (async function() {
   gitViewer.app = await CesiumViewer("#viewerRoot", config);
@@ -72,10 +74,11 @@ html, body {
     try{
         const config = {
             tilesetUrls:[
-                "http://175.116.181.151:6095/tile/test/tileset.json"
+                "./output/test/test49/tileset.json",
+              
             ],
             propertyUrls: [
-"http://175.116.181.151:6095/3d-tileset/mockdong/temp/properties.json"
+
             ],
             info: {
                 text: "서울시 공동구",
@@ -93,9 +96,14 @@ html, body {
           viewer (세슘 viewer 사용)
         */
         //정사영상 적용: const wms = app.addWebMapService(url,레이어명);
+        
+  //       tileset.style = new Cesium.Cesium3DTileStyle({
+  //  show: "${ifc_class} !== 'IfcSlab'"
+  // });
     } catch (err) {
         console.error("GIT.CesiumViewer 초기화 실패", err);
     }
+    
 })();
 </script> 
 </html>

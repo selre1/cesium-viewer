@@ -60,19 +60,44 @@ viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
 */
 viewer.scene.globe.translucency.enabled = true;
 
-     
+viewer.scene.sun.show = false;
+viewer.scene.moon.show = false;
+viewer.scene.skyBox.show = false;
+viewer.scene.skyAtmosphere.show = false;
 
- 
 
+viewer.scene.globe.enableLighting = false; // 시간/태양 영향 제거
+
+
+    // async function create(params) {
+    //     try { 
+           
+    //         for(let i = 49; i < 65; i++) {
+    //           const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/test/test"+i+"/tileset.json", {});
+    //           viewer.scene.primitives.add(tileset);  
+    //           if(i===49){
+    //             viewer.zoomTo(tileset);
+    //           }
+    //         }
+        
+          
+    //     } catch (error) {
+    //         console.error(`Tileset 생성 중 오류 발생: ${error}`);
+    //         return undefined;
+    //     } 
+    // }
     async function create(params) {
-     try {
-            const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/py_dir/tileset.json', {
-               
-            });
-            viewer.scene.primitives.add(tileset);
-
-
-            viewer.zoomTo(tileset);
+        try { 
+           
+           
+              const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/terra_b3dms/tileset.json", {});
+              viewer.scene.primitives.add(tileset);  
+             
+                viewer.zoomTo(tileset);
+              
+            
+        
+          
         } catch (error) {
             console.error(`Tileset 생성 중 오류 발생: ${error}`);
             return undefined;

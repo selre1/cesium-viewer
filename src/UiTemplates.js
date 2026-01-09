@@ -922,7 +922,9 @@ export const TOOLBAR_HTML =`
                     <path d="M12 10v6"></path>
                     <path d="M12 8h.01"></path>
                 </svg>
-
+            </button>
+            <button class="tool-group" id="group-layer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"  viewBox="0 0 24 24"  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon> <polyline points="2 17 12 22 22 17"></polyline> <polyline points="2 12 12 17 22 12"></polyline></svg>
             </button>
             <button class="tool-group" id="group-marker" style ="display:none;">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="size-5"><path d="M6.5 18.4999H16.5C17.6046 18.4999 18.5 17.6044 18.5 16.4999C18.5 15.3953 17.6046 14.4999 16.5 14.4999H3.5C2.39543 14.4999 1.5 13.6044 1.5 12.4999C1.5 11.3953 2.39543 10.4999 3.5 10.4999H7.5M17.815 4.52155C18.147 4.18958 18.3335 3.73935 18.3335 3.26988C18.3335 2.80041 18.147 2.35018 17.815 2.01821C17.483 1.68625 17.0328 1.49976 16.5633 1.49976C16.0939 1.49976 15.6436 1.68625 15.3117 2.01821L10.97 6.36155C10.7719 6.55956 10.6269 6.80432 10.5483 7.07321L9.85083 9.46488C9.82992 9.53659 9.82867 9.6126 9.8472 9.68496C9.86574 9.75731 9.90339 9.82336 9.95621 9.87617C10.009 9.92899 10.0751 9.96664 10.1474 9.98518C10.2198 10.0037 10.2958 10.0025 10.3675 9.98155L12.7592 9.28405C13.0281 9.20553 13.2728 9.06051 13.4708 8.86238L17.815 4.52155Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -931,7 +933,292 @@ export const TOOLBAR_HTML =`
     </div>
 `;
 
+/* ================= maplayer Templates ================= */
+export const MAPLAYER_STYLE_ID ='dynamic-maplayer-style';
+export const MAPLAYER_CSS = `
+        .layer-control-modal {
+            display: none;
+            position: fixed;
+            top: 92px;
+            right: 56px;
+            width: 380px;
+            max-width: calc(100% - 72px);
+            max-height: calc(100vh - 140px);
+            background: #0a0a0a;
+            border-radius: 20px;
+            box-shadow: 0 45px 80px rgba(3, 7, 18, 0.85);
+            overflow: hidden;
+            pointer-events: auto;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
 
+        .layer-control-modal.show {
+            display: flex !important;
+            flex-direction: column;
+        }
+
+        .layer-control-overlay {
+            display: none;
+        }
+
+        .layer-control-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .layer-control-header {
+            padding: 16px 20px;
+            background: linear-gradient(180deg, rgba(43, 127, 255, 0.1) 0%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .layer-control-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .layer-control-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(43, 127, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .layer-control-title-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .layer-control-title {
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 18px;
+            font-weight: 400;
+            color: #ffffff;
+            margin: 0;
+            line-height: 28px;
+        }
+
+        .layer-control-subtitle {
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 12px;
+            font-weight: 400;
+            color: #99a1af;
+            margin: 0;
+            line-height: 16px;
+        }
+
+        .layer-control-close {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-radius: 10px;
+            color: #99a1af;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .layer-control-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .layer-control-body {
+            flex: 1;
+            padding: 16px 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .layer-control-item {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(43, 127, 255, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .layer-control-item.active {
+            background: rgba(43, 127, 255, 0.1);
+            border-color: rgba(43, 127, 255, 0.2);
+        }
+
+        .layer-control-item-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .layer-control-item-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .layer-control-item.active .layer-control-item-icon {
+            background: rgba(43, 127, 255, 0.2);
+        }
+
+        .layer-control-item-text {
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            color: #99a1af;
+            line-height: 20px;
+        }
+
+        .layer-control-item.active .layer-control-item-text {
+            color: #ffffff;
+        }
+
+        .layer-control-item-toggle {
+            width: 44px;
+            height: 24px;
+            background: #4a5565;
+            border-radius: 9999px;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .layer-control-item.active .layer-control-item-toggle {
+            background: #2b7fff;
+        }
+
+        .layer-control-item-toggle-circle {
+            width: 16px;
+            height: 16px;
+            background: #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            transition: transform 0.2s;
+        }
+
+        .layer-control-item.active .layer-control-item-toggle-circle {
+            transform: translateX(20px);
+        }
+
+        .layer-control-footer {
+            padding: 16px 20px;
+            background: #1a1a1a;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 12px;
+        }
+
+        .layer-control-footer-btn {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .layer-control-footer-btn.on {
+            background: rgba(21, 93, 252, 0.2);
+            color: #51a2ff;
+        }
+
+        .layer-control-footer-btn.off {
+            background: rgba(74, 85, 101, 0.2);
+            color: #99a1af;
+        }
+
+        .layer-control-footer-btn:hover {
+            opacity: 0.8;
+        }
+`;
+export const MAPLAYER_HTML = `
+    <div id="layerControlModal" class="layer-control-modal show">
+        <div class="layer-control-content">
+            <div class="layer-control-header">
+                <div class="layer-control-title-wrap">
+                    <div class="layer-control-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                            <polyline points="2 17 12 22 22 17"></polyline>
+                            <polyline points="2 12 12 17 22 12"></polyline>
+                        </svg>
+                    </div>
+                    <div class="layer-control-title-group">
+                        <h2 class="layer-control-title">지도 레이어</h2>
+                        <p class="layer-control-subtitle" id="layerActiveCount">0개 활성화</p>
+                    </div>
+                </div>
+                <button type="button" class="layer-control-close" id="layerControlClose">
+                    ✕
+                </button>
+            </div>
+
+            <div class="layer-control-body">
+                <div class="layer-control-item" data-layer="SA001">
+                    <div class="layer-control-item-left">
+                        <div class="layer-control-item-icon" style="color: blue">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                            </svg>
+                        </div>
+                        <span class="layer-control-item-text">상수관로</span>
+                    </div>
+                    <div class="layer-control-item-toggle">
+                        <div class="layer-control-item-toggle-circle"></div>
+                    </div>
+                </div>
+                <div class="layer-control-item" data-layer="SB001">
+                    <div class="layer-control-item-left">
+                        <div class="layer-control-item-icon" style="color: red">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                            </svg>
+                        </div>
+                        <span class="layer-control-item-text">하수관거</span>
+                    </div>
+                    <div class="layer-control-item-toggle">
+                        <div class="layer-control-item-toggle-circle"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="layer-control-footer">
+                <button type="button" class="layer-control-footer-btn on" id="layerControlAllOn">모두 켜기</button>
+                <button type="button" class="layer-control-footer-btn off" id="layerControlAllOff">모두 끄기</button>
+            </div>
+        </div>
+    </div>
+`;
 
 /* ================= Profile Chart Templates ================= */
 

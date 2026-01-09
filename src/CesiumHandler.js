@@ -7,6 +7,7 @@ import {flyDirectionStayFitModel, flyToTilesetsWithPreset, flyWalkModeLookAt} fr
 import { CameraFreeMode }   from "./CameraFreeMode.js";
 import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
+import { MapLayer } from "./MapLayer.js";
 
 var CesiumHandler = (function(){
     Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzBlNTkwZC0yMWE3LTQzMzktYTE3YS0wMDhhYTU0OWFlMzciLCJpZCI6MzY0NjczLCJpYXQiOjE3NjQzMDE3ODR9.qL8L4zxg9x4yIQR6G-SPIXlPfegO7GkpvZ1GsupN4_4";
@@ -215,6 +216,7 @@ var CesiumHandler = (function(){
         });
 
         createInspectBox();
+        MapLayer({container: viewer.container});
 
         currentModelConfig = {
             tilesetUrls: tilesetUrls,

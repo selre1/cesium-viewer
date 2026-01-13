@@ -757,7 +757,9 @@ export function Measurement({cesiumViewer}){
             const $rootWrap      = $(toolRoot);
             const $groupMeasure  = $rootWrap.find('#group-measure');
             const $btnInspector  = $rootWrap.find('#group-inspector');
+            const $groupLayer    = $rootWrap.find('#group-layer');
             const $groupMarker   = $rootWrap.find('#group-marker');
+            
             const $measurePanel  = $rootWrap.find('.tool-panel--measure');
             const $markerPanel   = $rootWrap.find('.tool-panel--marker');
 
@@ -778,6 +780,7 @@ export function Measurement({cesiumViewer}){
             let measureOpen = false;
             let markerOpen  = false;
             let inspectorOpen = false;
+            let groupLayerOpen = false;
 
             function setActive($btn){ $tools.removeClass('is-active'); $btn.addClass('is-active'); }
             function clearActive(){ $tools.removeClass('is-active'); }
@@ -786,22 +789,28 @@ export function Measurement({cesiumViewer}){
                 measureOpen = true;
                 markerOpen  = false;
                 inspectorOpen = false;
+                groupLayerOpen = false;
                 $measurePanel.addClass('is-open');
-                $markerPanel.removeClass('is-open');
                 $groupMeasure.addClass('is-active');
+                $markerPanel.removeClass('is-open');
                 $groupMarker.removeClass('is-active');
                 $btnInspector.removeClass('is-active');
+                $groupLayer.removeClass('is-active');
+                $('#layerControlModal').removeClass('show');
             }
 
             function openInspectorPanel(){
                 inspectorOpen = true;
                 markerOpen  = false;
                 measureOpen = false;
+                groupLayerOpen = false;
 
                 $measurePanel.removeClass('is-open');
                 $markerPanel.removeClass('is-open');
                 $groupMeasure.removeClass('is-active');
                 $groupMarker.removeClass('is-active');
+                $groupLayer.removeClass('is-active');
+                $('#layerControlModal').removeClass('show');
 
                 $btnInspector.addClass('is-active');
             }
@@ -810,21 +819,42 @@ export function Measurement({cesiumViewer}){
                 markerOpen  = true;
                 measureOpen = false;
                 inspectorOpen = false;
+                groupLayerOpen = false;
                 $markerPanel.addClass('is-open');
-                $measurePanel.removeClass('is-open');
                 $groupMarker.addClass('is-active');
+                $measurePanel.removeClass('is-open');
                 $groupMeasure.removeClass('is-active');
+                $groupLayer.removeClass('is-active');
+                $('#layerControlModal').removeClass('show');
+            }
+
+            function openMapLayer(){
+                groupLayerOpen = true;
+                inspectorOpen = false;
+                markerOpen  = false;
+                measureOpen = false;
+                $groupLayer.addClass('is-active');
+                $('#layerControlModal').addClass('show');
+                
+                $measurePanel.removeClass('is-open');
+                $groupMeasure.removeClass('is-active');
+                $btnInspector.removeClass('is-active');
+                $groupMeasure.removeClass('is-active');
+                $groupMarker.removeClass('is-active');
             }
 
             function closeAllPanels(){
                 measureOpen = false;
                 markerOpen  = false;
                 inspectorOpen = false;
+                groupLayerOpen = false;
                 $measurePanel.removeClass('is-open');
                 $markerPanel.removeClass('is-open');
                 $groupMeasure.removeClass('is-active');
                 $groupMarker.removeClass('is-active');
                 $btnInspector.removeClass('is-active');
+                $groupLayer.removeClass('is-active');
+                $('#layerControlModal').removeClass('show');
                 clearActive();
             }
 
@@ -835,6 +865,14 @@ export function Measurement({cesiumViewer}){
             function showMountToolBar(){
                 $rootWrap.css("display", "flex");
             }
+
+            $groupLayer.on('click', () => {
+                if(groupLayerOpen){
+                    closeAllPanels();
+                } else{
+                    openMapLayer();
+                }
+            });
 
             $groupMeasure.on('click', () => {
                 if (measureOpen) {

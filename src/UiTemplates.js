@@ -1162,7 +1162,7 @@ export const MAPLAYER_CSS = `
         }
 `;
 export const MAPLAYER_HTML = `
-    <div id="layerControlModal" class="layer-control-modal show">
+    <div id="layerControlModal" class="layer-control-modal">
         <div class="layer-control-content">
             <div class="layer-control-header">
                 <div class="layer-control-title-wrap">
@@ -1178,6 +1178,7 @@ export const MAPLAYER_HTML = `
                         <p class="layer-control-subtitle" id="layerActiveCount">0개 활성화</p>
                     </div>
                 </div>
+                
                 <button type="button" class="layer-control-close" id="layerControlClose">
                     ✕
                 </button>

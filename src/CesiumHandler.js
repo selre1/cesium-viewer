@@ -105,6 +105,7 @@ var CesiumHandler = (function(){
     let cameraOrbitMode; // 회전모드
     let measurement; // 측정도구 기능 제어
     let toolBarApi; // 툴 단위 제어
+    let mapLayer; // 지도 레이어 기능 제어
 
     // 각 기능 정의
     const Mode = {
@@ -189,7 +190,7 @@ var CesiumHandler = (function(){
         currentMode = nextMode;
     }
 
-    async function init(elementId, { tilesetUrls, propertyUrls, info, terrain, baseLayer} = {}) {
+    async function init(elementId, { tilesetUrls, propertyUrls, info, terrain, baseLayer, mapLayer} = {}) {
         viewer = initCesiumViewer(elementId,terrain, baseLayer);
         translucencyUpdate(); // 지하 특화 환경
         createCompas(); // 나침반 생성
@@ -216,7 +217,7 @@ var CesiumHandler = (function(){
         });
 
         createInspectBox();
-        MapLayer({container: viewer.container});
+        MapLayer({cesiumViewer: viewer, options: mapLayer});
 
         currentModelConfig = {
             tilesetUrls: tilesetUrls,

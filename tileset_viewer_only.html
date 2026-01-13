@@ -43,6 +43,7 @@ html, body {
     const viewer = new Cesium.Viewer("cesiumContainer",{
        // terrain: Cesium.Terrain.fromWorldTerrain()
     });
+
     viewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
         viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
 viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
@@ -73,9 +74,12 @@ viewer.scene.globe.enableLighting = false; // 시간/태양 영향 제거
     //     try { 
            
     //         for(let i = 49; i < 65; i++) {
-    //           const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/test/test"+i+"/tileset.json", {});
+    //           const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/songdo_test_draco/test"+i+"/tileset.json", {
+    //             backFaceCulling : true
+    //           });
     //           viewer.scene.primitives.add(tileset);  
-    //           if(i===49){
+
+    //           if(i===50){
     //             viewer.zoomTo(tileset);
     //           }
     //         }
@@ -90,7 +94,7 @@ viewer.scene.globe.enableLighting = false; // 시간/태양 영향 제거
         try { 
            
            
-              const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/terra_b3dms/tileset.json", {});
+              const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/test57/tileset.json", {});
               viewer.scene.primitives.add(tileset);  
              
                 viewer.zoomTo(tileset);

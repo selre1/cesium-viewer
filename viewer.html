@@ -44,7 +44,7 @@ html, body {
   var gitViewer = gitViewer || {};
   const config = {
     tilesetUrls:[
-          "./output/test/test49/tileset.json",
+          "./output/pg_out/tileset.json",
     ],
     propertyUrls: [
          
@@ -56,7 +56,11 @@ html, body {
           length: 100
     },
     terrain: "",
-    baseLayer : ""
+    baseLayer : "",
+    mapLayer: {
+              'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
+              'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
+    }
   };
  (async function() {
   gitViewer.app = await CesiumViewer("#viewerRoot", config);
@@ -74,7 +78,7 @@ html, body {
     try{
         const config = {
             tilesetUrls:[
-                "./output/test/test49/tileset.json",
+                "./output/pg_out/tileset.json",
               
             ],
             propertyUrls: [
@@ -86,7 +90,11 @@ html, body {
                 length: 100
             },
             terrain: "",
-            baseLayer : ""
+            baseLayer : "",
+            mapLayer: {
+              'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
+              'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
+            }
         };
         const app = await GIT("viewerRoot",config);
         console.log(app);

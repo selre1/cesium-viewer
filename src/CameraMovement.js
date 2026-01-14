@@ -98,7 +98,7 @@ export function flyToTilesetsWithPreset(
   union,                 
   presetKey = "top",     // "top" | "left" | "right"
   duration = 0.8,
-  range = 600
+  range = 1000
 ) {
 
   if (!union) return;

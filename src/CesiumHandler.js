@@ -361,7 +361,7 @@ var CesiumHandler = (function(){
             const rect = boundingSphereToRectangle(unionTilesetCenter,viewer.scene.globe.ellipsoid);
             viewer.scene.globe.cartographicLimitRectangle = rect;
 
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 600);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 1000);
 
             tasks.push(tilesets);
         }

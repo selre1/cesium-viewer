@@ -5,8 +5,8 @@ export default async function CesiumViewer(target, options = {}) {
   const elementId = typeof target === "string" ? target.replace(/^#/, "") : (target && target.id);
   const viewer = await CesiumHandler.init(elementId, options);
 
-  function update3Dtileset(tilesetUrls, propertyUrls = []) {
-    return CesiumHandler.updateModelConfig(tilesetUrls, propertyUrls);
+  function update3Dtileset(tilesetUrls) {
+    return CesiumHandler.updateModelConfig(tilesetUrls);
   }
 
   function addWebMapService(url, layers){
@@ -29,12 +29,32 @@ export default async function CesiumViewer(target, options = {}) {
     CesiumHandler.setMode(type);
   }
 
+  function applyInvisibleTiles(className ='IfcSlab'){
+    const tilesets = CesiumHandler.getLoaded3DTilesets();
+    tilesets.forEach(ts => {
+      ts.style =  new Cesium.Cesium3DTileStyle({
+          show : "${ifc_class} !== '" + className + "'",
+      });
+    });
+  }
+
+  function applyVisibleTiles(className ='IfcSlab'){
+    const tilesets = CesiumHandler.getLoaded3DTilesets();
+    tilesets.forEach(ts => {
+      ts.style =  new Cesium.Cesium3DTileStyle({
+          show : "${ifc_class} !== 'IfcOpeningElement'",
+      });
+    });
+  }
+
   return {
     viewer,
     setMode,
     updateBaseLayer,
     updateTerrain,
     update3Dtileset,
-    addWebMapService
+    addWebMapService,
+    applyInvisibleTiles,
+    applyVisibleTiles
   };
 }

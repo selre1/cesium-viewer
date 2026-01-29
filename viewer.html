@@ -32,7 +32,7 @@ html, body {
   <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
   <script src="./cesium/Cesium.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-  <script src="./dist/GIT.js"></script>
+   <script src="./dist/GIT.js"></script> 
 </head>
 <body>
 <div id="viewerRoot"></div>
@@ -44,16 +44,28 @@ html, body {
   var gitViewer = gitViewer || {};
   const config = {
     tilesetUrls:[
-      //"./output/compare/legacy/in/tiles/tileset.json",
-      //"./output/compare/legacy/out/tiles/tileset.json",
-      "./output/compare/kdtree/tileset.json"
-    ],
-    propertyUrls: [
-         
-          
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wall/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/slab/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wallstandardcase/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/beam/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/door/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/covering/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stair/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/column/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/member/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/railing/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stairflight/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/buildingelementproxy/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowfitting/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowsegment/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowterminal/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/openingelement/tileset.json'
+
     ],
     info: {
           text: "서울시 공동구입니다.",
+          longitude: 126.873689,
+          latitude: 37.527571,
           iconSrc: "./src/under.png",
           length: 100
     },
@@ -65,7 +77,7 @@ html, body {
     }
   };
  (async function() {
-  gitViewer.app = await CesiumViewer("#viewerRoot", config);
+  window.app = await CesiumViewer("#viewerRoot", config);
  })(); 
 </script> 
  <!-- <script>
@@ -80,12 +92,17 @@ html, body {
     try{
         const config = {
             tilesetUrls:[
-                "./output/pg_out/tileset.json",
+        //    './output/new/0/tileset.json',
+     // './output/new/1/tileset.json',
+    //  './output/new/2/tileset.json',
+    //  './output/new/3/tileset.json'
+               'http://175.116.181.151:6095/3d-tileset/tiles_260122/0/tileset.json',
+     'http://175.116.181.151:6095/3d-tileset/tiles_260122/1/tileset.json',
+      'http://175.116.181.151:6095/3d-tileset/tiles_260122/2/tileset.json',
+      'http://175.116.181.151:6095/3d-tileset/tiles_260122/3/tileset.json'
               
             ],
-            propertyUrls: [
-
-            ],
+            
             info: {
                 text: "서울시 공동구",
                 iconSrc: "./src/under.png",

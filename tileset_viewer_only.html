@@ -38,10 +38,33 @@ html, body {
     <div id="cesiumContainer"></div>
 </body>
  <script>
-     Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYjI4ZjRhOS1lNDdiLTQwYjQtOWUxNC04ZDgxMzA5ZDZkOWYiLCJpZCI6MjQwMDY3LCJpYXQiOjE3NjI5MzU5MTZ9.3Ld8v74q8vXrCIoM0TQGdgqlCUO3pX4UQKmUTSO1Fck";
-        
+   Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzBlNTkwZC0yMWE3LTQzMzktYTE3YS0wMDhhYTU0OWFlMzciLCJpZCI6MzY0NjczLCJpYXQiOjE3NjQzMDE3ODR9.qL8L4zxg9x4yIQR6G-SPIXlPfegO7GkpvZ1GsupN4_4";
+    
+  const provider = new Cesium.WebMapServiceImageryProvider({
+            url: 'https://maps1.geosolutionsgroup.com/geoserver/wms',
+            tileWidth: 512,
+            tileHeight: 512,
+            layers: 'osm:osm'
+        });
+        let imageryLayer = new Cesium.ImageryLayer(provider);
     const viewer = new Cesium.Viewer("cesiumContainer",{
        // terrain: Cesium.Terrain.fromWorldTerrain()
+       imageryLayer:imageryLayer,
+                   baseLayerPicker: false,
+            animation: false,
+            fullscreenButton: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            sceneModePicker: false,
+            selectionIndicator: false,
+            timeline: false,
+            navigationHelpButton: false,
+            navigationInstructionsInitiallyVisible: false,
+            skyBox: false,
+            scene3DOnly: true,
+            requestRenderMode: true,
+            maximumRenderTimeChange: Infinity
     });
 
     viewer.scene.globe.depthTestAgainstTerrain = false; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
@@ -61,40 +84,36 @@ viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
 */
 viewer.scene.globe.translucency.enabled = true;
 
-viewer.scene.sun.show = false;
-viewer.scene.moon.show = false;
-viewer.scene.skyBox.show = false;
-viewer.scene.skyAtmosphere.show = false;
 
 
-viewer.scene.globe.enableLighting = false; // 시간/태양 영향 제거
 
+      async function create(params) {
+         try { 
+         
+             for(let i = 0; i < 4; i++) {
+               /*const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/test/output_"+i+"_g50/tileset.json", {
+                 backFaceCulling : true
+               });*/
+               const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/new/"+i+"/tileset.json", {
+               
+               });
+               viewer.scene.primitives.add(tileset);  
 
-    // async function create(params) {
-    //     try { 
-           
-    //         for(let i = 49; i < 65; i++) {
-    //           const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/draco/test"+i+"/tileset.json", {
-    //             backFaceCulling : true
-    //           });
-    //           viewer.scene.primitives.add(tileset);  
-
-    //           if(i===50){
-    //             viewer.zoomTo(tileset);
-    //           }
-    //         }
-        
-          
-    //     } catch (error) {
-    //         console.error(`Tileset 생성 중 오류 발생: ${error}`);
-    //         return undefined;
-    //     } 
-    // }
-    async function create(params) {
+               if(i===2){
+                 viewer.zoomTo(tileset);
+               }
+             }
+            
+         } catch (error) {
+             console.error(`Tileset 생성 중 오류 발생: ${error}`);
+             return undefined;
+         } 
+     }
+   /*  async function create(params) {
         try { 
            //kdtree_compa/kdtree_draco
            
-              const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/kdtree_compa/kdtree/tileset.json", {});
+              const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/new/output/tileset.json", {});
               viewer.scene.primitives.add(tileset);  
              
                 viewer.zoomTo(tileset);
@@ -106,7 +125,7 @@ viewer.scene.globe.enableLighting = false; // 시간/태양 영향 제거
             console.error(`Tileset 생성 중 오류 발생: ${error}`);
             return undefined;
         } 
-    }
+    }  */
     create();
      
 </script> 

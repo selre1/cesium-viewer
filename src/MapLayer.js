@@ -53,8 +53,6 @@ export function MapLayer({cesiumViewer, options} ) {
                 dataSource.show = false; // 초기 상태: 숨김
                 layerDataSources[layerId] = dataSource;
             }
-
-            console.log(`레이어  로드 완료: `);
         } catch (error) {
             console.error(`레이어  로드 실패:`, error);
         }

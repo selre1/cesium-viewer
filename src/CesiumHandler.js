@@ -13,9 +13,10 @@ var CesiumHandler = (function(){
     Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzBlNTkwZC0yMWE3LTQzMzktYTE3YS0wMDhhYTU0OWFlMzciLCJpZCI6MzY0NjczLCJpYXQiOjE3NjQzMDE3ODR9.qL8L4zxg9x4yIQR6G-SPIXlPfegO7GkpvZ1GsupN4_4";
     let viewer, handler;
     let infoBoxEls = {}, infoBoxEnabled = false;
-    let inspectorBoxEl, inspectorLists, properties = {}, 
-        inspectorBoxEnabled = false, $btnInspectorModelShow, inspectorSelectedModel = null, $btnResetHiddenModels=null;
+    let inspectorBoxEl, inspectorLists, inspectorBoxEnabled = false, $btnInspectorModelShow, inspectorSelectedModel = null, $btnResetHiddenModels=null;
     const inspectorHiddenModel = new Set();
+    let lastSelectedFeature = null;
+    let lastSelectedColor = null;
 
     let entityOverlayEl = null;              // HTML 오버레이 엘리먼트
     const entityScratch = new Cesium.Cartesian2(); //preRender에서 재사용할 좌표 버퍼
@@ -25,31 +26,16 @@ var CesiumHandler = (function(){
 
     let currentModelConfig = { // 기본 모델 정보
         tilesetUrls: null,
-        propertyUrls: [],
         info: {
             text: undefined,
+            longitude: undefined,
+            latitude: undefined,
             iconSrc: undefined,
             length: 100.0,
         }
     };
     let loaded_3Dtilesets = []; // 현재 scene에 추가된 tilesets
-
-    // 마우스 hover 시 모델 하이라이트
-    const hoverState = {
-        model: undefined,
-        color: undefined,
-        blendMode: undefined,
-        blendAmount: undefined,
-    };
     
-    // 마우스 click 시 모델 하이라이트
-    const selectedState = {
-        model: undefined,
-        color: undefined,
-        blendMode: undefined,
-        blendAmount: undefined,
-    };
-
     // cesium 기본 환경
     var DefaultOption = {
         animation: false, //좌측 하단 둥근 위젯 노출여부
@@ -134,8 +120,6 @@ var CesiumHandler = (function(){
         cameraOrbitMode.disable();
         infoBoxDisable();
         inspectBoxDisable();
-        restoreModelState(selectedState);
-        restoreModelState(hoverState);
         viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); // 객체 클릭 후 pivot된 카메라 해제
         if (toolBarApi) toolBarApi.showMountToolBar();
 
@@ -190,7 +174,7 @@ var CesiumHandler = (function(){
         currentMode = nextMode;
     }
 
-    async function init(elementId, { tilesetUrls, propertyUrls, info, terrain, baseLayer, mapLayer} = {}) {
+    async function init(elementId, { tilesetUrls, info, terrain, baseLayer, mapLayer} = {}) {
         viewer = initCesiumViewer(elementId,terrain, baseLayer);
         translucencyUpdate(); // 지하 특화 환경
         createCompas(); // 나침반 생성
@@ -221,8 +205,7 @@ var CesiumHandler = (function(){
 
         currentModelConfig = {
             tilesetUrls: tilesetUrls,
-            propertyUrls: propertyUrls,
-            info: info,
+            info: info
         };
 
         await applyModelConfig(currentModelConfig);
@@ -248,6 +231,9 @@ var CesiumHandler = (function(){
         //cesiumViewer.scene.fxaa = false;
         cesiumViewer.scene.sun.show  = false;   // 태양
         cesiumViewer.scene.moon.show = false;   // 달
+        cesiumViewer.scene.imageBasedLighting = new Cesium.ImageBasedLighting({intensity: 2.5 });
+        cesiumViewer.shadows = false;
+        cesiumViewer.scene.globe.enableLighting = false;
         
         cesiumViewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
         cesiumViewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // 카메라 충돌 감지 비활성화(지하를 탐색하기 위함)
@@ -262,21 +248,8 @@ var CesiumHandler = (function(){
             cesiumViewer.trackedEntity = undefined;
         }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-    
         const controller = cesiumViewer.scene.screenSpaceCameraController;
-        // 줌/회전 민감도 낮추기 (기본 zoomFactor≈5, rotateFactor≈1 근처)
-        controller.zoomFactor   = 3;  // 휠 줌 너무 세면 1.2~2.0 정도로
-        //controller.rotateFactor = 0.4;  // 회전 속도 줄이기
-        // 너무 가까이/멀리 못 가게 범위 제한
-        controller.minimumZoomDistance = 2.0;    // 지하 모델 근접 최소 거리
-        controller.maximumZoomDistance = 300.0;  // 이 이상은 멀어지지 않게
-
-        // 카메라 관성(밀려나가는 느낌) 줄이기
-        const cam = cesiumViewer.camera;
-        cam.inertiaSpin      = 0.2;  // 회전 관성 (기본 0.9 근처)
-        cam.inertiaTranslate = 0.4;  // 이동 관성
-        cam.inertiaZoom      = 0.4;  // 줌 관성
-
+        
         // 모델 중앙 라벨 오버레이 위치 유지하기 위함
         cesiumViewer.scene.preRender.addEventListener(function () {
             if (!entityOverlayEl || entityOverlayEl.style.display === 'none') return;
@@ -361,7 +334,7 @@ var CesiumHandler = (function(){
             const rect = boundingSphereToRectangle(unionTilesetCenter,viewer.scene.globe.ellipsoid);
             viewer.scene.globe.cartographicLimitRectangle = rect;
 
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 1000);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 10000);
 
             tasks.push(tilesets);
         }
@@ -371,9 +344,6 @@ var CesiumHandler = (function(){
             removeModelInfoLabel();
             setModelInfoLabel(config.info);
         }
-
-        // propertyUrls 업데이트
-        if (config.propertyUrls && config.propertyUrls.length) tasks.push(loadTilesetInfo({ url: config.propertyUrls }));
         
         // tasks 작업이 모두 끝나길 대기
         // 하나라도 실패해도 전체 실패로 간주
@@ -428,50 +398,36 @@ var CesiumHandler = (function(){
 
     async function renderingAllTileset({url}) {
 
-        if(loaded_3Dtilesets.length > 0){
-            loaded_3Dtilesets.forEach(ts=>{
+        if (Array.isArray(loaded_3Dtilesets) && loaded_3Dtilesets.length > 0) {
+            loaded_3Dtilesets.forEach(ts => {
+                if (!ts) return;
                 viewer.scene.primitives.remove(ts);
-            })
+                if (!ts.isDestroyed()) {
+                    ts.destroy();
+                }
+            });
+            loaded_3Dtilesets.length = 0;
         }
-        loaded_3Dtilesets = [];
 
-        if (url.length === 0) {
+        if (!Array.isArray(url) || url.length === 0) {
             console.warn("tilesetUrl 이 존재하지 않습니다.");
             return [];
         }
-   
-        const allLoaded = [];
 
-        for (const u of url) {
-            const tilesets = await loadAllTilesets(u);
-            allLoaded.push(...tilesets);
-        }
-      
-        loaded_3Dtilesets = allLoaded;
+        const tasks = url.map(u => createTileset(u));
+        const results = await Promise.allSettled(tasks);
 
-        return allLoaded;
-    }
-
-    async function loadTilesetInfo({url}) {
-        let totalLoaded = 0;
-        for (const jsonUrl of url) {
-            try {
-                const response = await fetch(jsonUrl);
-
-                if (!response.ok) {
-                    console.warn(`JSON 파일 로드 실패 (${response.status}): ${jsonUrl}`);
-                    continue;
-                }
-                const propertiesData = await response.json();
-                properties = { ...properties, ...propertiesData };
-                totalLoaded += Object.keys(propertiesData).length;
-
-            } catch (error) {
-                console.error(`JSON 로드 실패: ${jsonUrl}`, error);
+        const loaded = [];
+        results.forEach(r => {
+            if (r.status === 'fulfilled' && r.value) {
+                loaded.push(r.value);
+            } else {
+                console.warn('Tileset load failed:', r.reason);
             }
-        }
-        console.log(`${totalLoaded}개 객체 로드 완료`);
-        return properties;
+        });
+
+        loaded_3Dtilesets = loaded;
+        return loaded;
     }
 
     function createRoundBadgeCanvas({
@@ -566,21 +522,24 @@ var CesiumHandler = (function(){
         const centerCartesian  = unionTilesetCenter.center;
         const centerCarto      = ellipsoid.cartesianToCartographic(centerCartesian);
 
+        const lonDeg = options.longitude ?? Cesium.Math.toDegrees(centerCarto.longitude);
+        const latDeg = options.latitude ?? Cesium.Math.toDegrees(centerCarto.latitude);
+
         const baseHeight       = centerCarto.height;            // 필요시 0으로 고정해도 됨
         const cylinderMidH     = baseHeight + lineLength / 2.0; // 원통 중심 높이
         const labelHeight      = baseHeight + lineLength;       // 라벨 높이
 
         // 원통(수직 라인) 중심 위치
-        const cylinderPos = Cesium.Cartesian3.fromRadians(
-            centerCarto.longitude,
-            centerCarto.latitude,
+        const cylinderPos = Cesium.Cartesian3.fromDegrees(
+            lonDeg,
+            latDeg,
             cylinderMidH
         );
 
         // 이미지 위치 (라인 최상단)
-        const labelPos = Cesium.Cartesian3.fromRadians(
-            centerCarto.longitude,
-            centerCarto.latitude,
+        const labelPos = Cesium.Cartesian3.fromDegrees(
+            lonDeg,
+            latDeg,
             labelHeight
         );
 
@@ -599,7 +558,7 @@ var CesiumHandler = (function(){
                 material: Cesium.Color.WHITE.withAlpha(0.9),
                 outline: false,
             
-                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 8000.0)
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 10000.0)
             }
         });
 
@@ -613,7 +572,7 @@ var CesiumHandler = (function(){
         }).then((badgeCanvas) => {
             viewer.entities.add({
                 id : 'entity_icon',
-                position: labelPos,
+                position:  labelPos,
                 properties: {
                     title: `${text}`,
                     desc:  '이 영역은 지하시설물 3D 모델의 중심 지점을 나타냅니다.'
@@ -623,7 +582,7 @@ var CesiumHandler = (function(){
                     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                     pixelOffset: new Cesium.Cartesian2(0, 6),
                     scale: 1.0,
-                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 8000.0)
+                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 10000.0)
                 }
             });
         });
@@ -693,7 +652,7 @@ var CesiumHandler = (function(){
 
             const isVisible  = (model.show !== false); // 현재 모델이 보이는 상태인지
             model.show = !isVisible ;
-            isVisible ? inspectorHiddenModel.add(model) : inspectorHiddenModel.delete(model);
+            isVisible ? inspectorHiddenModel.add(model.getProperty('guid')) : inspectorHiddenModel.delete(model.getProperty('guid'));
             $btnInspectorModelShow.text(`${isVisible  ? '보기' : '숨김'}`);
             updateHiddenModelsResetButton();
         });
@@ -749,11 +708,23 @@ var CesiumHandler = (function(){
 
                 // 리셋 버튼 클릭 시 숨긴 모델 전부 다시 보이기
                 $btnResetHiddenModels.on('click', () => {
-                    inspectorHiddenModel.forEach(model => {
-                        if (model && !model.isDestroyed?.()) {
-                            model.show = true;
+                    (loaded_3Dtilesets || []).forEach(ts => {
+                        const selected = ts._selectedTiles || [];
+                        for (const t of selected) {
+                            const content = t.content;
+                            const len = content.featuresLength || 0;
+                            for (let i = 0; i < len; i++) {
+                                const f = content.getFeature(i);
+                                const id = f.getProperty('guid');
+                                if (inspectorHiddenModel.has(id)) {
+                                    f.show = true;                                 
+                                }
+                            }
                         }
                     });
+                    if(inspectorHiddenModel.size > 0){
+                        
+                    }
                     inspectorHiddenModel.clear();
 
                     // 선택 모델 버튼 텍스트도 복구
@@ -866,46 +837,42 @@ var CesiumHandler = (function(){
 
         try {
             const tileset = await Cesium.Cesium3DTileset.fromUrl(url, {
-                skipLevelOfDetail: true,
-                baseScreenSpaceError: 2048,
-                skipScreenSpaceErrorFactor: 32,
-                skipLevels: 1,
-                immediatelyLoadDesiredLevelOfDetail: false,
-                loadSiblings: false,
-                dynamicScreenSpaceError: true,
-                dynamicScreenSpaceErrorDensity: 2.0e-4,
-                dynamicScreenSpaceErrorFactor: 24.0,
-                dynamicScreenSpaceErrorHeightFalloff: 0.25
-
-                // maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
-                // skipLevelOfDetail: true,
-                // baseScreenSpaceError: 1024,
-                // skipScreenSpaceErrorFactor: 16,
-                // skipLevels: 1,
-                // immediatelyLoadDesiredLevelOfDetail: false,
-                // loadSiblings: false,
-
-                // dynamicScreenSpaceError: false,
-                // dynamicScreenSpaceErrorDensity: 2.0e-4,
-                // dynamicScreenSpaceErrorFactor: 24.0,
-                // dynamicScreenSpaceErrorHeightFalloff: 0.25,
-                // cullWithChildrenBounds: true,
-                // cullRequestsWhileMoving: false
-            
+                 shadows : Cesium.ShadowMode.ENABLED,
+                 maximumMemoryUsage : 4096,
+                 maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
+               
+            });
+            //tileset.loadProgress.addEventListener((pendingRequests, tilesProcessing) => {});
+            tileset.style = new Cesium.Cesium3DTileStyle({
+                color: {
+                    conditions: [
+                        ["${ifc_class} === 'IfcFlowSegment'", "color('#1a16ff')"],
+                        ["${ifc_class} === 'IfcFlowFitting'", "color('#1a16ff')"]
+                    ]
+                },
+                show : "${ifc_class} !== 'IfcOpeningElement'",
+            });
+            tileset.tileVisible.addEventListener(tile => {
+                const content = tile.content;
+                const len = content.featuresLength || 0;
+                for (let i = 0; i < len; i++) {
+                    const f = content.getFeature(i);
+                    const id = f.getProperty('guid');
+                    const clssId = f.getProperty('ifc_class');
+                    if (id != null && inspectorHiddenModel.has(id)) {
+                        f.show = false;
+                    }else{
+                        f.show = true;
+                    }
+                    
+                    if (clssId === 'IfcOpeningElement') {
+                        f.show = false;
+                    }
+                }
             });
             viewer.scene.primitives.add(tileset);
-
-            /*
-            // 타일 로드되는 프로그래스바
-            tileset.loadProgress.addEventListener(function(numberOfPendingRequests, numberOfTilesProcessing) {
-                if ((numberOfPendingRequests === 0) && (numberOfTilesProcessing === 0)) {
-                    console.log('Stopped loading');
-                    return;
-                }
-
-                console.log(`Loading: requests: ${numberOfPendingRequests}, processing: ${numberOfTilesProcessing}`);
-            });
-            */
+            await tileset.readyPromise;
+            
             return tileset;
         } catch (error) {
             console.error(`Tileset 생성 중 오류 발생: ${error}`);
@@ -913,60 +880,35 @@ var CesiumHandler = (function(){
         }
     }
 
-    async function loadAllTilesets(rootTilesetUrl) {
-        try {
-            const url = await Promise.resolve(rootTilesetUrl);
-            const response = await fetch(url);
-            if (!response.ok) {
-                console.error(`Root tileset 로드 실패: ${response.status}`);
-                return [];
-            }
-            const rootData = await response.json();
+    function unionAllTilesetsBoundingSphereCompute(tilesets){
+        if (!Array.isArray(tilesets) || tilesets.length === 0) return null;
 
-            if(rootData?.asset?.extras?.ion) {
-                 const tileset = await createTileset(rootTilesetUrl);
-                 return [tileset];
-            }
+        const spheres = [];
 
-            if(rootData?.asset?.STW){
-                const tileset = await createTileset(rootTilesetUrl);
-                 return [tileset];
+        for (const ts of tilesets) {
+            const bv = ts?.root?.boundingVolume;
+            if (!bv) continue;
+
+            // boundingVolume → BoundingSphere 변환
+            let sphere;
+            if (bv.boundingSphere) {
+                sphere = bv.boundingSphere;
+            } else {
+                sphere = Cesium.BoundingSphere.fromBoundingVolume(bv);
             }
 
-            const children = rootData.root?.children || [];
-            console.log(`타입별 Tileset: ${children.length}개`);
-
-            const loadedTilesets = [];
-            const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
-
-            for (const child of children) {
-                if (child.content && child.content.uri) {
-                    const childUrl = baseUrl + child.content.uri;
-                    const tileset = await createTileset(childUrl);
-                    if (tileset) {
-                        loadedTilesets.push(tileset);
-                    }
-                }
+            if (sphere && sphere.radius > 0) {
+                spheres.push(sphere);
             }
-            console.log(`총 ${loadedTilesets.length}개 Tileset 로드 완료`);
-            return loadedTilesets;
-
-        } catch (error) {
-            console.error(`루트 tileset 처리 실패:`, error);
-            return [];
         }
-    }
 
-    function unionAllTilesetsBoundingSphereCompute(loadedTilesets){
-        const paddingScale = 1.2;
-            const ready = loadedTilesets.filter(t => t && t.boundingSphere);
-            if (ready.length === 0) return;
-            // union 구체 계산
-            let union = ready[0].boundingSphere;
-            for (let i = 1; i < ready.length; i++) {
-                union = Cesium.BoundingSphere.union(union, ready[i].boundingSphere);
-            }
-            union = new Cesium.BoundingSphere(union.center, union.radius * paddingScale);
+        if (spheres.length === 0) return null;
+
+        let union = spheres[0];
+        for (let i = 1; i < spheres.length; i++) {
+            union = Cesium.BoundingSphere.union(union, spheres[i]);
+        }
+
         return union;
     }
 
@@ -1054,7 +996,7 @@ var CesiumHandler = (function(){
 
         // 카메라 그룹 안에서 항목 클릭 처리 (수직, 좌측45도, 우측45도)
         $hcm.on('click', 'button', function (e) {
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, this.dataset.view, 0.8, 600);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, this.dataset.view, 0.8, 10000);
         });
 
         // 탐색모드 버튼
@@ -1159,61 +1101,6 @@ var CesiumHandler = (function(){
         if (handler) handler.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
-    function applyModelHighlight(state, model, color, blendAmount) {
-        if (!model) return;
-
-        state.model       = model;
-        state.color       = model.color ? model.color.clone() : Cesium.Color.WHITE.clone();
-        state.blendMode   = model.colorBlendMode;
-        state.blendAmount = model.colorBlendAmount;
-
-        model.color = color;
-        model.colorBlendMode   = Cesium.ColorBlendMode.MIX;
-        model.colorBlendAmount = blendAmount;
-    }
-
-    function restoreModelState(state) {
-        if (!state.model) return;
-
-        if (state.color) {
-            state.model.color = state.color;
-        }
-        if (Cesium.defined(state.blendMode)) {
-            state.model.colorBlendMode = state.blendMode;
-        }
-        if (typeof state.blendAmount === 'number') {
-            state.model.colorBlendAmount = state.blendAmount;
-        }
-
-        state.model       = undefined;
-        state.color       = undefined;
-        state.blendMode   = undefined;
-        state.blendAmount = undefined;
-    }
-
-    function updateHoverHighlight(pickedModel){
-        if(!pickedModel) restoreModelState(hoverState);
-        //이전과 동일한 모델이거나, 선택된 모델이면 → 아무 것도 하지 않음
-        if (pickedModel === hoverState.model || pickedModel === selectedState.model) {
-            return;
-        }
-
-        // 이전 hover 복구 (선택된 모델은 복구 대상에서 제외)
-        if (hoverState.model && hoverState.model !== selectedState.model) {
-            restoreModelState(hoverState);
-        }
-
-        // 새 모델에 hover 적용
-        if (pickedModel && pickedModel !== selectedState.model) {
-            applyModelHighlight(
-                hoverState,
-                pickedModel,
-                Cesium.Color.YELLOW.withAlpha(0.2), // hover 시 연한 노란색 반투명
-                0.25
-            );
-        }
-    }
-
     function showEntityOverlay(entity) {
         function createEntityOverlay() {
             if (entityOverlayEl) return entityOverlayEl;
@@ -1291,14 +1178,55 @@ var CesiumHandler = (function(){
             }
 
             // 3D Tiles feature에서 실제 Model 가져오기
-            if (obj.content && obj.content._model) {
+            if (obj instanceof Cesium.Cesium3DTileFeature) {
                 return {
                     feature: obj,
-                    model: obj.content._model,
                 };
             }
         }
         return null;
+    }
+
+    function isTilesFeature(feature) {
+        return feature instanceof Cesium.Cesium3DTileFeature;
+    }
+
+    function getFeatureColor(feature) {
+        try {
+            return feature?.color?.clone?.() || Cesium.Color.WHITE;
+        } catch {
+            return Cesium.Color.WHITE;
+        }
+    }
+
+    function setFeatureColor(feature, color) {
+        try {
+            if (feature && color) {
+                feature.color = color;
+            }
+        } catch {
+           console.warn('feature 색상 발생');
+        }
+    }
+
+    function clearHighlight() {
+        if (lastSelectedFeature && lastSelectedColor) {
+            setFeatureColor(lastSelectedFeature, lastSelectedColor);
+        }
+        lastSelectedFeature = null;
+        lastSelectedColor = null;
+    }
+
+    function highlightFeature(feature) {
+        if (!isTilesFeature(feature)) return;
+        if (lastSelectedFeature && lastSelectedFeature !== feature) {
+            clearHighlight();
+        }
+        if (lastSelectedFeature === feature) return;
+
+        lastSelectedFeature = feature;
+        lastSelectedColor = getFeatureColor(feature);
+        setFeatureColor(feature, Cesium.Color.CYAN.withAlpha(0.8));
     }
 
     function onMouseMove(movement) {
@@ -1309,15 +1237,6 @@ var CesiumHandler = (function(){
         if (now - hoverCheckLastTime < 50) return;
         
         hoverCheckLastTime = now;
-
-        const pickResult = pickModelFeatureIgnoringMeasure(movement.endPosition);
-        let pickedModel = pickResult ? pickResult.model : undefined;
-
-        /*
-        *  hover 하이라이트 업데이트
-        *    - 이전 hover 복구 + 새 hover 적용까지 처리
-        */
-        //updateHoverHighlight(pickedModel);
 
         /*
         * 현재 마우스 아래 icon entity (설명서) 찾기
@@ -1356,18 +1275,9 @@ var CesiumHandler = (function(){
     }
 
     function onMouseLeftClick(movement){
-        const scene = viewer.scene;
-
-        /*
-        * primitive => 실제 scene에 렌더링된 오브젝트
-        * content => 클릭된 오브젝트 타일
-        * detail => 내부 세부정보
-        */
-        const pickResult = pickModelFeatureIgnoringMeasure(movement.position);
-
-        //flyWalkModeLookAt(viewer,movement); //해당 위치이동
+        // 아이콘 entity 클릭 시 카메라 이동
         let pickedEntity;
-        if(!pickedEntity) pickedEntity = scene.pick(movement.position);
+        if(!pickedEntity) pickedEntity = viewer.scene.pick(movement.position);
         if (Cesium.defined(pickedEntity) && pickedEntity.id && pickedEntity.id.id === 'entity_icon') {
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(126.87345863222825, 37.52793533575197, 2.7866826672040563),
@@ -1377,51 +1287,37 @@ var CesiumHandler = (function(){
                     roll: 0,
                 }
             });
+            return;
         } 
-
-        //이전 모델 선택 하이라이트 해제
-        restoreModelState(selectedState);
-        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);// 객체 클릭 후 pivot된 카메라 해제
+        /*
+        * primitive => 실제 scene에 렌더링된 오브젝트
+        * content => 클릭된 오브젝트 타일
+        * detail => 내부 세부정보
+        */
+        const pickResult = pickModelFeatureIgnoringMeasure(movement.position);
+        const pickedFeature = pickResult?.feature;
 
         if (!pickResult) {
-            //setInspectorBox(false);
+            clearHighlight();
             updateInspectorToggleButton(null);
             return;
         }
 
-        const pickedFeature = pickResult.feature;
-        const model         = pickResult.model;
-
-        //glTF 모델 색상 하이라이트
-        if (model) {
-            // hover 상태와 겹치면 hover는 해제
-            if (hoverState.model === model) {
-                restoreModelState(hoverState);
-            }
-            // 선택된 모델 하이라이트
-            applyModelHighlight(
-                selectedState,
-                model,
-                Cesium.Color.CYAN.withAlpha(0.3),
-                0.5
-            );
-            
-            //flyDirectionStayFitModel(viewer,model);
-            updateInspectorToggleButton(model);
-        }else{
-            updateInspectorToggleButton(null);
-        }
-
-        let guid = pickedFeature.detail?.node?._name;
-        renderInspector(guid);
+        highlightFeature(pickedFeature);
+        //flyDirectionStayFitModel(viewer,model);
+        updateInspectorToggleButton(pickedFeature);
+       
+        renderInspector(pickedFeature);
         //setInspectorBox(true);
+        function renderInspector(feature) {
+            if (!inspectorLists || !feature) return;
 
-        function renderInspector(guid) {
-            if (!inspectorLists) return;
             inspectorLists.innerHTML = '';
 
-            const props = properties[guid];
-            if (!props) {
+            // feature에 있는 property 목록
+            const propIds = feature.getPropertyIds?.() || [];
+
+            if (!propIds.includes('props')) {
                 inspectorLists.innerHTML = `
                     <div class="inspect_list">
                         <div class="k">info</div>
@@ -1430,18 +1326,97 @@ var CesiumHandler = (function(){
                 `;
                 return;
             }
-            let html = '';
-            // props 객체의 key / value를 돌면서 행 생성
-            Object.entries(props).forEach(([key, value]) => {
-                if (key === 'GUID') return;  
-                html += `
+
+            let propsRaw = feature.getProperty('props');
+            let propsObj = null;
+
+            try {
+                propsObj = typeof propsRaw === 'string'
+                    ? JSON.parse(propsRaw)
+                    : propsRaw;
+            } catch (e) {
+                console.warn('props JSON 파싱 실패', propsRaw);
+            }
+
+            if (!propsObj || Object.keys(propsObj).length === 0) {
+                inspectorLists.innerHTML = `
                     <div class="inspect_list">
-                        <div class="k">${key}</div>
-                        <div style="color:#cccccc;">${value}</div>
+                        <div class="k">info</div>
+                        <div style="color:#cccccc;">속성이 없습니다.</div>
                     </div>
                 `;
+                return;
+            }
+
+            const isPlainObject = (val) => {
+                return Object.prototype.toString.call(val) === '[object Object]';
+            };
+
+            const formatValue = (val) => {
+                if (val === null || val === undefined) return '';
+                if (typeof val === 'string') return val;
+                if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+                try {
+                    return JSON.stringify(val);
+                } catch {
+                    return String(val);
+                }
+            };
+
+            const rows = [];
+            const addRow = (label, value) => {
+                rows.push(`
+                    <div class="inspect_list">
+                        <div class="k">${label}</div>
+                        <div style="color:#cccccc;">${formatValue(value)}</div>
+                    </div>
+                `);
+            };
+
+            const addSection = (title, obj) => {
+                const sectionRows = Object.entries(obj || {}).map(([k, v]) => {
+                    return `
+                        <div class="inspect_list">
+                            <div class="k">${k}</div>
+                            <div style="color:#cccccc;">${formatValue(v)}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                rows.push(`
+                    <div class="inspect_section">
+                        <button type="button" class="inspect_section_header" aria-expanded="true">
+                            <span class="inspect_section_toggle">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="inspect_toggle_icon"><path fill-rule="evenodd" d="M12.53 16.28a.75.75 0 01-1.06 0l-7.5-7.5a.75.75 0 011.06-1.06L12 14.69l6.97-6.97a.75.75 0 111.06 1.06l-7.5 7.5z" clip-rule="evenodd"></path></svg>
+                            </span>
+                            <span class="inspect_section_title">${title}</span>
+                        </button>
+                        <div class="inspect_section_body">
+                            ${sectionRows}
+                        </div>
+                    </div>
+                `);
+            };
+
+            Object.entries(propsObj).forEach(([key, value]) => {
+                if (isPlainObject(value)) {
+                    addSection(key, value);
+                    return;
+                }
+                addRow(key, value);
             });
-            inspectorLists.innerHTML = html;
+
+            inspectorLists.innerHTML = rows.join('');
+
+            const sectionHeaders = inspectorLists.querySelectorAll('.inspect_section_header');
+            sectionHeaders.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const section = btn.closest('.inspect_section');
+                    if (!section) return;
+                    const isOpen = section.classList.toggle('is-open');
+                    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+            });
         }
     }
 
@@ -1458,13 +1433,18 @@ var CesiumHandler = (function(){
         return viewer.imageryLayers.addImageryProvider(wms);
     }
 
+    function getLoaded3DTilesets() {
+        return loaded_3Dtilesets;
+    }
+
     return {
         init,
         setMode,
         updateTerrain,
         updateBaseLayer,
         updateModelConfig,
-        applyWebMapService
+        applyWebMapService,
+        getLoaded3DTilesets
     };
 })();
 

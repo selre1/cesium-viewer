@@ -532,9 +532,12 @@ export const INSPECTOR_CSS = `
     
     /* key-value 영역 */
     .inspect_list {
-        padding: 10px 0;
-        border-bottom: 1px solid #222a33;
+        padding: 5px 0;
+       /* border-bottom: 1px solid #222a33;*/
         font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .inspect_list:last-child {
@@ -544,6 +547,63 @@ export const INSPECTOR_CSS = `
     .inspect_list .k {
         color: #ffffffff;
         margin-bottom: 5px;
+    }
+
+
+    /* nested section */
+    .inspect_section {
+        border-bottom: 1px solid #222a33;
+        padding: 4px 0 6px;
+    }
+
+    .inspect_section:last-child {
+        border-bottom: 0;
+    }
+
+    .inspect_section_header {
+        width: 100%;
+        background: transparent;
+        border: 0;
+        padding: 6px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        color: #3b82f6;
+        font-size: 12px;
+        text-align: left;
+    }
+
+    .inspect_section_toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        color: #3b82f6;
+    }
+
+    .inspect_toggle_icon {
+        width: 12px;
+        height: 12px;
+        display: block;
+        transform: rotate(-90deg);
+        transition: transform 0.2s ease;
+    }
+
+    .inspect_section.is-open .inspect_toggle_icon {
+        transform: rotate(0deg);
+    }
+
+    .inspect_section_title {
+        font-weight: 600;
+    }
+
+    .inspect_section_body {
+        margin-left: 18px;
+    }
+
+    .inspect_section:not(.is-open) .inspect_section_body {
+        display: none;
     }
 
     .inspector button:hover {
@@ -596,12 +656,12 @@ export const INSPECTOR_CSS = `
 `;
 export const INSPECTOR_HTML = `
     <aside class="inspector">
-        <div style="border-color:#222a33; display:flex; align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,0.2);">
+        <div style="border-color:#222a33; display:flex; align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,0.2); padding-bottom:1rem;">
             <h3 style="font-size:.875rem; margin:0; font-weight:600; color:white;">모델정보</h3>
             <button id="btnInspectorModelShow" class="inspectorBaseBtn cesium-button" disabled>숨김</button>
             <button class="inspectorBaseBtn cesium-button" id="btnInspectorClose">닫기</button>
         </div>
-        <div id="inspector_list_container" style="flex:1; overflow:auto;">
+        <div id="inspector_list_container" style="flex:1; overflow:auto; padding-right:5px;">
             <div class="inspect_list" style = "text-align: center;">
                 <div style="color:#e6edf3;">모델을 클릭해 주세요.</div>
             </div>

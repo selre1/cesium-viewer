@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Preview | Digital Twin Toolbox</title>
+  <link rel="icon" href="/assets/images/logo.svg">
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19"></script>
+  <style>
+    html, body, #container {
+      position: absolute;
+      padding: 0;
+      margin: 0;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Courier New', Courier, monospace;
+    }
+  </style>
+</head>
+
+<body>
+    <div id="pickInfo"
+  style="
+    position:absolute; left:12px; top:12px; z-index:10;
+    background:rgba(0,0,0,.65); color:#fff; padding:10px 12px;
+    border-radius:8px; max-width:360px; max-height:45vh; overflow:auto;
+    font:12px/1.4 monospace; display:none;">
+</div>
+  <div id="container"></div>
+
+  <script type="module">
+    const provider = new Cesium.WebMapServiceImageryProvider({
+      url: 'https://maps1.geosolutionsgroup.com/geoserver/wms',
+      tileWidth: 512,
+      tileHeight: 512,
+      layers: 'osm:osm'
+    });
+    let imageryLayer = new Cesium.ImageryLayer(provider);
+
+    const viewer = new Cesium.Viewer('container', {
+      imageryLayer: imageryLayer,
+      baseLayerPicker: false,
+      animation: false,
+      fullscreenButton: false,
+      geocoder: false,
+      homeButton: false,
+      infoBox: false,
+      sceneModePicker: false,
+      selectionIndicator: false,
+      timeline: false,
+      navigationHelpButton: false,
+      navigationInstructionsInitiallyVisible: false,
+      skyBox: false,
+      scene3DOnly: true,
+      requestRenderMode: true,
+      maximumRenderTimeChange: Infinity
+    });
+
+    viewer.imageryLayers.removeAll();
+    viewer.imageryLayers.add(imageryLayer);
+const hiddenIds = new Set();
+
+function getFeatureId(feature) {
+  return feature.getProperty('guid') ?? feature.getProperty('gml_id') ?? feature.featureId ?? feature._batchId;
+}
+
+
+// 숨김 처리
+function hideFeature(feature) {
+  const id = getFeatureId(feature);
+  if (id == null) return;
+  hiddenIds.add(id);
+  feature.show = false;
+}
+    
+        
+        viewer.scene.globe.depthTestAgainstTerrain = true; //지형(terrain)을 기준으로 깊이 테스트(지형 우선)
+        viewer.scene.screenSpaceCameraController.enableCollisionDetection = false; // 카메라 충돌 감지 비활성화(지하를 탐색하기 위함)
+        viewer.scene.globe.translucency.frontFaceAlphaByDistance = new Cesium.NearFarScalar( 400.0, 0.0, 2000.0, 1.0);
+
+    // ✅ 여기에 tileset들을 추가하세요
+    const TILESET_URLS = [
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wall/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/slab/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wallstandardcase/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/beam/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/door/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/covering/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stair/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/column/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/member/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/railing/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stairflight/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/buildingelementproxy/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowfitting/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowsegment/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowterminal/tileset.json',
+      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/openingelement/tileset.json'
+
+    ];
+
+    // 여러 tileset 로드
+    async function loadTilesets(urls) {
+      const tilesets = await Promise.all(
+        urls.map(async (url) => {
+          const ts = await Cesium.Cesium3DTileset.fromUrl(url);
+          ts.style = new Cesium.Cesium3DTileStyle({
+              color: {
+                conditions: [
+                  ["${ifc_class} === 'IfcFlowSegment'", "color('blue', 1.0)"]
+                ]
+              },
+              show : "${ifc_class} !== 'IfcOpeningElement'",
+            });
+           ts.tileVisible.addEventListener(tile => {
+            const content = tile.content;
+            const len = content.featuresLength || 0;
+            for (let i = 0; i < len; i++) {
+              const f = content.getFeature(i);
+              const id = getFeatureId(f);
+
+              if (id != null && hiddenIds.has(id)) {
+              //  f.show = false;
+              } else {
+              //  f.show = true; // resetHidden 후엔 자동 복구
+              }
+            }
+          });
+          viewer.scene.primitives.add(ts);
+          return ts;
+        })
+      );
+
+      // 모든 tileset이 준비될 때까지(바운딩/스타일 적용 안정화)
+      await Promise.all(tilesets.map(ts => ts.readyPromise));
+
+      return tilesets;
+    }
+
+    // 여러 boundingSphere를 하나로 합쳐서 카메라 이동
+    function flyToAllTilesets(tilesets) {
+      let unionSphere = null;
+
+      for (const ts of tilesets) {
+        const bs = ts.boundingSphere;
+        if (!unionSphere) {
+          unionSphere = new Cesium.BoundingSphere(bs.center, bs.radius);
+        } else {
+          unionSphere = Cesium.BoundingSphere.union(unionSphere, bs, new Cesium.BoundingSphere());
+        }
+      }
+
+      if (unionSphere) {
+        viewer.camera.flyTo({
+          destination: Cesium.Rectangle.fromBoundingSphere(unionSphere),
+          duration: 0
+        });
+      }
+    }
+
+    // 공통 디버그/품질 옵션 GUI 적용
+    function attachCommonGui(tilesets) {
+      const GUI = lil.GUI;
+      const gui = new GUI();
+
+      // (원래 코드 유지) tileset 객체에 직접 대입 가능한 속성들
+      const controls = {
+        debugShowBoundingVolume: false,
+        debugShowGeometricError: false,
+        debugShowRenderingStatistics: false,
+        debugShowMemoryUsage: false,
+        maximumScreenSpaceError: 1,
+        skipLevelOfDetail: false,
+        immediatelyLoadDesiredLevelOfDetail: true,
+        loadSiblings : true
+      };
+
+      // 모든 tileset에 동일 적용
+      Object.keys(controls).forEach(key => {
+        gui.add(controls, key).onChange((value) => {
+          tilesets.forEach(ts => { ts[key] = value; });
+          viewer.scene.requestRender();
+        });
+      });
+
+      // point cloud shading도 모든 tileset에 동일 적용 (포인트클라우드 아닌 경우 무시됨)
+      tilesets.forEach(ts => {
+        if (ts.pointCloudShading) {
+          ts.pointCloudShading.attenuation = true;
+          ts.pointCloudShading.maximumAttenuation = 4;
+        }
+      });
+
+      // basemap 토글 (원래 코드 유지)
+      gui.add({ basemap: true }, 'basemap').onChange((value) => {
+        if (value) {
+          imageryLayer = new Cesium.ImageryLayer(provider);
+          viewer.imageryLayers.add(imageryLayer);
+        } else {
+          viewer.imageryLayers.remove(imageryLayer);
+        }
+        viewer.scene.requestRender();
+      });
+
+      // classification 토글 (모든 tileset에 style 적용/해제)
+      gui.add({ classification: false }, 'classification').onChange((value) => {
+        if (value) {
+          const style = new Cesium.Cesium3DTileStyle({
+            color: {
+              conditions: [
+                ["${ifc_class} === 'ifcWall'", "color('gray', 1.0)"],
+                ["${ifc_class} === 'IfcSlab'", "color('blue', 1.0)"]
+              ]
+            },
+            show: true
+          });
+          tilesets.forEach(ts => { ts.style = style; });
+        } else {
+          tilesets.forEach(ts => { ts.style = undefined; });
+        }
+        viewer.scene.requestRender();
+      });
+
+     
+    }
+
+    function attachTilesPicking(viewer, tilesets) {
+      const infoEl = document.getElementById("pickInfo");
+
+      // 선택 하이라이트 관리
+      let selectedFeature = null;
+      let selectedOriginalColor = null;
+
+      function clearSelection() {
+        if (selectedFeature && selectedOriginalColor) {
+          selectedFeature.color = selectedOriginalColor;
+        }
+        selectedFeature = null;
+        selectedOriginalColor = null;
+        infoEl.style.display = "none";
+        infoEl.innerHTML = "";
+      }
+
+      function showFeatureInfo(feature) {
+        const names = feature.getPropertyNames?.() || [];
+        // 대표적으로 보여줄 것들 우선(없으면 빈값)
+        const ifcClass = feature.getProperty?.("ifc_class") ?? "";
+        const guid = feature.getProperty?.("guid") ?? feature.getProperty?.("GlobalId") ?? "";
+        const name = feature.getProperty?.("name") ?? feature.getProperty?.("Name") ?? "";
+
+        let html = "";
+        html += `<div style="font-weight:700; margin-bottom:6px;">Picked Feature</div>`;
+        if (ifcClass) html += `<div><b>ifc_class</b>: ${ifcClass}</div>`;
+        if (guid) html += `<div><b>guid</b>: ${guid}</div>`;
+        if (name) html += `<div><b>name</b>: ${name}</div>`;
+
+        // 전체 프로퍼티 펼쳐서 보기
+        if (names.length) {
+          html += `<hr style="border:none;border-top:1px solid rgba(255,255,255,.2); margin:8px 0;">`;
+          html += `<div style="opacity:.9; margin-bottom:6px;">properties (${names.length})</div>`;
+          html += `<div style="white-space:pre-wrap;">`;
+          for (const n of names) {
+            const v = feature.getProperty(n);
+            // 너무 긴 값은 적당히 자르기
+            const s = (v === null || v === undefined) ? "" : String(v);
+            html += `${n}: ${s.length > 300 ? s.slice(0, 300) + "..." : s}\n`;
+          }
+          html += `</div>`;
+        }
+
+        infoEl.innerHTML = html;
+        infoEl.style.display = "block";
+      }
+
+      // 클릭 이벤트 핸들러
+      const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+      handler.setInputAction((movement) => {
+        const picked = viewer.scene.pick(movement.position);
+
+        // 빈 공간 클릭
+        if (!Cesium.defined(picked)) {
+          clearSelection();
+          viewer.scene.requestRender();
+          return;
+        }
+
+        // 3D Tiles 피처만 처리
+        // (picked.primitive 또는 picked instanceof Cesium.Cesium3DTileFeature 형태로 잡힘)
+        const feature = picked instanceof Cesium.Cesium3DTileFeature ? picked : picked?.primitive;
+        if (!(feature instanceof Cesium.Cesium3DTileFeature)) {
+          clearSelection();
+          viewer.scene.requestRender();
+          return;
+        }
+      //  feature.show = false;
+       // hiddenIds.add(getFeatureId(feature));
+        // 이전 선택 해제
+        if (selectedFeature && selectedOriginalColor) {
+          selectedFeature.color = selectedOriginalColor;
+        }
+
+        // 새 선택 저장 & 하이라이트
+        selectedFeature = feature;
+        selectedOriginalColor = feature.color.clone();
+        feature.color = Cesium.Color.YELLOW.withAlpha(0.9);
+
+        // 정보 표시
+        showFeatureInfo(feature);
+
+        // 콘솔 로그(원하면 끄면 됨)
+        console.log("Picked feature:", feature);
+        console.log("Properties:", feature.getPropertyNames?.(), {
+          ifc_class: feature.getProperty?.("ifc_class"),
+          guid: feature.getProperty?.("guid")
+        });
+
+        viewer.scene.requestRender();
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  // 복구 처리
+function resetHidden() {
+  hiddenIds.clear();
+  // ?? ??? ??? ?? ??
+  (tilesets || []).forEach(ts => {
+    const selected = ts._selectedTiles || [];
+    for (const t of selected) {
+      const content = t.content;
+      const len = content.featuresLength || 0;
+      for (let i = 0; i < len; i++) {
+        const f = content.getFeature(i);
+        if(f.getProperty('ifc_class') === 'IfcFlowSegment'){
+          console.log('hi');
+        }
+        f.show = true;
+      }
+    }
+  });
+}
+window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      clearSelection();
+      resetHidden();
+      viewer.scene.requestRender();
+    }
+  });
+}
+
+
+    // 실행
+    loadTilesets(TILESET_URLS)
+      .then((tilesets) => {
+        flyToAllTilesets(tilesets);
+        attachCommonGui(tilesets);
+         attachTilesPicking(viewer, tilesets);
+        viewer.scene.requestRender();
+      })
+      .catch((error) => {
+        console.log(`Error loading tilesets: ${error}`);
+      });
+  </script>
+</body>
+
+</html>

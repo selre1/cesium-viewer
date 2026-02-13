@@ -19,79 +19,6 @@ const VIEW_PRESETS = {
   },
 };
 
-/*
-* 모델의 사이즈에 맞춰서 카메라 이동
-* 카메라 위치 자세 유지 o
-* pivot 불가
-*/
-export function flyDirectionStayFitModel(viewer, model){
-    const scene  = viewer.scene;
-    const camera = viewer.camera;
-
-    if (!model) return;
-
-    //모델의 bounding sphere 정보 가져오기
-    const bs = model._boundingSphere || model.boundingSphere;
-    if (!bs) return;
-
-    const center = bs.center;             // 모델 중심
-    const radius = bs.radius || 10.0;     // 모델 크기
-
-    //카메라 FOV 기반으로 전체가 보이는 최소 거리 계산
-    const frustum = camera.frustum;
-    const fovy    = frustum.fovy || Cesium.Math.toRadians(60.0);
-    const aspect  = frustum.aspectRatio
-        || (viewer.canvas.clientWidth / viewer.canvas.clientHeight);
-
-    const fovx = 2.0 * Math.atan(Math.tan(fovy / 2.0) * aspect);
-
-    // 세로/가로 중 더 가까운 쪽 기준으로 거리 계산
-    const distV = radius / Math.sin(fovy / 2.0);
-    const distH = radius / Math.sin(fovx / 2.0);
-    let range = Math.max(distV, distH) * 1.1;   // 살짝 여유 10%
-
-    // 너무 가깝거나 너무 멀지 않게 한번 더 클램프
-    const dMin = 3.0;    // 실내용 너무 붙지 않게
-    const dMax = 50.0;  // 너무 멀어지지 않게 
-    //range = Cesium.Math.clamp(range, dMin, dMax);
-
-    const currentDistance = Cesium.Cartesian3.distance(camera.position, center);
-    if (Cesium.defined(currentDistance) && isFinite(currentDistance)) {
-        // 현재 거리보다 최대 1.3배까지만 멀어지게 허용
-        const maxAllowed = Math.max(dMin, Math.min(dMax, currentDistance * 1.1));
-        range = Math.min(range, maxAllowed);
-    }
-
-    const currentHeading = camera.heading;
-    let currentPitch   = camera.pitch;
-    const minPitch = Cesium.Math.toRadians(-80); // -90(수직)까지 안 가게
-    const maxPitch = Cesium.Math.toRadians(-10); // 너무 수평으로 안 가게
-    currentPitch   = Cesium.Math.clamp(currentPitch, minPitch, maxPitch);
-
-
-    // --- BoundingSphere 기준으로 fly + pivot 고정 ---
-    camera.flyToBoundingSphere(bs, {
-        duration: 0.7,
-        easingFunction: Cesium.EasingFunction.QUADRATIC_OUT,
-        offset: new Cesium.HeadingPitchRange(
-            currentHeading,
-            currentPitch,
-            range
-        ),
-        complete() {
-            // 여기서 회전 pivot을 center로 고정
-            viewer.camera.lookAt(
-                center,
-                new Cesium.HeadingPitchRange(
-                currentHeading,
-                currentPitch,
-                range
-                )
-            );
-        }
-    });
-}
-
 
 export function flyToTilesetsWithPreset(
   viewer,
@@ -129,35 +56,110 @@ export function flyWalkModeLookAt(viewer, movement) {
         return Cesium.Math.zeroToTwoPi(heading); // 0~2π 로 변환
     }
 
+    function computeHeadingPitchToTarget(fromPos, toPos) {
+        const enuToWorld = Cesium.Transforms.eastNorthUpToFixedFrame(fromPos);
+        const worldToEnu = Cesium.Matrix4.inverse(enuToWorld, new Cesium.Matrix4());
+        const toVec = Cesium.Cartesian3.subtract(toPos, fromPos, new Cesium.Cartesian3());
+        const local = Cesium.Matrix4.multiplyByPointAsVector(
+            worldToEnu,
+            toVec,
+            new Cesium.Cartesian3()
+        );
+
+        const heading = Math.atan2(local.x, local.y);
+        const horizontal = Math.sqrt(local.x * local.x + local.y * local.y);
+        const pitch = Math.atan2(local.z, horizontal);
+
+        return {
+            heading: Cesium.Math.zeroToTwoPi(heading),
+            pitch,
+        };
+    }
+
   const scene  = viewer.scene;
   const camera = viewer.camera;
 
   if (!scene.pickPositionSupported) return;
 
-  const pickedPosition = scene.pickPosition(movement.position);
-  if (!Cesium.defined(pickedPosition)) return;
+  const ray = camera.getPickRay(movement.position);
+  const hit = scene.pickFromRay(ray);
+  if (!hit || !hit.position) return;
 
-  const eyeHeight   = 1;
+  const downRay = new Cesium.Ray(
+    hit.position,
+    Cesium.Cartesian3.negate(camera.upWC, new Cesium.Cartesian3())
+  );
+  const floorHit = scene.pickFromRay(downRay);
+  if (!floorHit || !floorHit.position) return;
+
+  const eyeHeight = 1.3;
+  const headClearance = 0.2;
+  const backDistance = 1;
   const flyDuration = 1.0;
 
-  const destCarto = Cesium.Cartographic.fromCartesian(pickedPosition);
-  destCarto.height += eyeHeight;
+  const targetCarto = Cesium.Cartographic.fromCartesian(floorHit.position);
+  targetCarto.height += eyeHeight;
 
-  const destination = Cesium.Cartesian3.fromRadians(
-    destCarto.longitude,
-    destCarto.latitude,
-    destCarto.height
+  const targetPosition = Cesium.Cartesian3.fromRadians(
+    targetCarto.longitude,
+    targetCarto.latitude,
+    targetCarto.height
   );
 
-  const startCarto = Cesium.Cartographic.fromCartesian(camera.positionWC);
-  const heading    = computeHeadingFromTo(startCarto, destCarto);
-  const pitch      = camera.pitch; // 그대로 두거나 -0.2 같은 고정값도 가능
-  const roll       = 0.0;
+  const viewDir = Cesium.Cartesian3.subtract(
+    targetPosition,
+    camera.positionWC,
+    new Cesium.Cartesian3()
+  );
+  Cesium.Cartesian3.normalize(viewDir, viewDir);
+
+  const destination = Cesium.Cartesian3.add(
+    targetPosition,
+    Cesium.Cartesian3.multiplyByScalar(viewDir, -backDistance, new Cesium.Cartesian3()),
+    new Cesium.Cartesian3()
+  );
+
+  const look = computeHeadingPitchToTarget(destination, targetPosition);
+  const roll = 0.0;
 
   camera.flyTo({
     destination,
-    orientation: { heading, pitch, roll },
+    orientation: { heading: look.heading, pitch: look.pitch, roll },
     duration: flyDuration,
-    easingFunction: Cesium.EasingFunction.QUADRATIC_OUT
+    easingFunction: Cesium.EasingFunction.QUADRATIC_OUT,
+    complete: function () {
+      //clampHeightBetweenFloorAndCeiling(viewer, eyeHeight, headClearance);
+    }
   });
+}
+
+function clampHeightBetweenFloorAndCeiling(viewer, eyeHeight, headClearance) {
+  const scene = viewer.scene;
+  const cam = viewer.camera;
+
+  const downDir = Cesium.Cartesian3.negate(cam.upWC, new Cesium.Cartesian3());
+  const downRay = new Cesium.Ray(cam.positionWC, downDir);
+  const upRay = new Cesium.Ray(cam.positionWC, cam.upWC);
+
+  const floorHit = scene.pickFromRay(downRay);
+  const ceilHit = scene.pickFromRay(upRay);
+
+  if (!floorHit || !floorHit.position) return;
+
+  const floorCarto = Cesium.Cartographic.fromCartesian(floorHit.position);
+  let minH = floorCarto.height + eyeHeight;
+
+  let maxH = Infinity;
+  if (ceilHit && ceilHit.position) {
+    const ceilCarto = Cesium.Cartographic.fromCartesian(ceilHit.position);
+    maxH = ceilCarto.height - headClearance;
+  }
+
+  const camCarto = Cesium.Cartographic.fromCartesian(cam.positionWC);
+  const clampedH = Cesium.Math.clamp(camCarto.height, minH, maxH);
+
+  if (Math.abs(clampedH - camCarto.height) > 1e-3) {
+    camCarto.height = clampedH;
+    cam.position = Cesium.Cartesian3.fromRadians(camCarto.longitude, camCarto.latitude, camCarto.height);
+  }
 }

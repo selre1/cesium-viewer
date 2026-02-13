@@ -3,11 +3,12 @@ import {
   INSPECTOR_STYLE_ID, INSPECTOR_CSS, INSPECTOR_HTML,
   COMPASS_SVG
 } from "./UiTemplates.js";
-import {flyDirectionStayFitModel, flyToTilesetsWithPreset, flyWalkModeLookAt} from "./CameraMovement.js";
+import {flyToTilesetsWithPreset,flyWalkModeLookAt} from "./CameraMovement.js";
 import { CameraFreeMode }   from "./CameraFreeMode.js";
 import { CameraOrbitMode } from "./CameraOrbitMode.js";
 import { Measurement }  from "./Measurement.js";
 import { MapLayer } from "./MapLayer.js";
+import { CameraBaseHandler } from "./CameraBaseHandler.js"
 
 var CesiumHandler = (function(){
     Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzBlNTkwZC0yMWE3LTQzMzktYTE3YS0wMDhhYTU0OWFlMzciLCJpZCI6MzY0NjczLCJpYXQiOjE3NjQzMDE3ODR9.qL8L4zxg9x4yIQR6G-SPIXlPfegO7GkpvZ1GsupN4_4";
@@ -55,7 +56,7 @@ var CesiumHandler = (function(){
         navigationInstructionsInitiallyVisible: false,
         shadows: false, // 기본값 false. 모델과 지형에 태양의 그림자가 드리울지 여부(빛 조정은 이 속성에서 조절 안되고 그림자만 드리워짐)
         maximumRenderTimeChange: Infinity, // requestRenderMode가 true인 경우 시물레이션이 변경됨에 따른 새 프레임 요청 간격(초)을 설정
-        sceneMode: Cesium.SceneMode.SCENE3D,
+        //sceneMode: Cesium.SceneMode.SCENE3D,
         //useDefaultRenderLoop: false // 자동 렌더링 여부
         // requestRenderMode: true, // scene을 업데이트하지 않으면 새 프레임을 렌더링하지 않도록 설정
         terrain: Cesium.Terrain.fromWorldTerrain(), //세슘 ion 지원
@@ -228,7 +229,7 @@ var CesiumHandler = (function(){
         }
     
         const cesiumViewer = new Cesium.Viewer(elementId, DefaultOption);
-        //cesiumViewer.scene.fxaa = false;
+        cesiumViewer.scene.fxaa = false;
         cesiumViewer.scene.sun.show  = false;   // 태양
         cesiumViewer.scene.moon.show = false;   // 달
         cesiumViewer.scene.imageBasedLighting = new Cesium.ImageBasedLighting({intensity: 2.5 });
@@ -243,13 +244,8 @@ var CesiumHandler = (function(){
         $( '.cesium-viewer-bottom' ).remove();
     
         if (!handler) handler = new Cesium.ScreenSpaceEventHandler(cesiumViewer.canvas);
+        CameraBaseHandler(cesiumViewer, handler);
 
-        handler.setInputAction(function () {
-            cesiumViewer.trackedEntity = undefined;
-        }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
-
-        const controller = cesiumViewer.scene.screenSpaceCameraController;
-        
         // 모델 중앙 라벨 오버레이 위치 유지하기 위함
         cesiumViewer.scene.preRender.addEventListener(function () {
             if (!entityOverlayEl || entityOverlayEl.style.display === 'none') return;
@@ -334,7 +330,7 @@ var CesiumHandler = (function(){
             const rect = boundingSphereToRectangle(unionTilesetCenter,viewer.scene.globe.ellipsoid);
             viewer.scene.globe.cartographicLimitRectangle = rect;
 
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 10000);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, "top", 0, 4000);
 
             tasks.push(tilesets);
         }
@@ -838,19 +834,28 @@ var CesiumHandler = (function(){
         try {
             const tileset = await Cesium.Cesium3DTileset.fromUrl(url, {
                  shadows : Cesium.ShadowMode.ENABLED,
-                 maximumMemoryUsage : 4096,
+                 //maximumMemoryUsage : 4096,
                  maximumScreenSpaceError: 16,      // default 16보다 올려서 성능상향
+                // debugShowBoundingVolume: true,
+               // debugShowGeometricError: false,
+               // debugShowRenderingStatistics: false,
+               // debugShowMemoryUsage: false,
+             
+              //  skipLevelOfDetail: false,
+              //  immediatelyLoadDesiredLevelOfDetail: true,
+               // loadSiblings : true
                
             });
             //tileset.loadProgress.addEventListener((pendingRequests, tilesProcessing) => {});
             tileset.style = new Cesium.Cesium3DTileStyle({
-                color: {
-                    conditions: [
-                        ["${ifc_class} === 'IfcFlowSegment'", "color('#1a16ff')"],
-                        ["${ifc_class} === 'IfcFlowFitting'", "color('#1a16ff')"]
-                    ]
-                },
-                show : "${ifc_class} !== 'IfcOpeningElement'",
+                //color: {
+                //    conditions: [
+                //        ["${ifc_class} === 'IfcFlowSegment'", "color('#1a16ff')"],
+                //        ["${ifc_class} === 'IfcFlowFitting'", "color('#1a16ff')"]
+                //    ]
+                //},
+              //  color: "${color} == 'null' ? color('white', 1.0) : color('red', 1.0)",
+                show: "${ifc_class} !== 'IfcOpeningElement'",
             });
             tileset.tileVisible.addEventListener(tile => {
                 const content = tile.content;
@@ -861,12 +866,12 @@ var CesiumHandler = (function(){
                     const clssId = f.getProperty('ifc_class');
                     if (id != null && inspectorHiddenModel.has(id)) {
                         f.show = false;
-                    }else{
-                        f.show = true;
+                        continue;
                     }
                     
                     if (clssId === 'IfcOpeningElement') {
                         f.show = false;
+                        continue;
                     }
                 }
             });
@@ -996,7 +1001,7 @@ var CesiumHandler = (function(){
 
         // 카메라 그룹 안에서 항목 클릭 처리 (수직, 좌측45도, 우측45도)
         $hcm.on('click', 'button', function (e) {
-            flyToTilesetsWithPreset(viewer, unionTilesetCenter, this.dataset.view, 0.8, 10000);
+            flyToTilesetsWithPreset(viewer, unionTilesetCenter, this.dataset.view, 0.8, 4000);
         });
 
         // 탐색모드 버튼
@@ -1226,7 +1231,7 @@ var CesiumHandler = (function(){
 
         lastSelectedFeature = feature;
         lastSelectedColor = getFeatureColor(feature);
-        setFeatureColor(feature, Cesium.Color.CYAN.withAlpha(0.8));
+        setFeatureColor(feature, Cesium.Color.CYAN.withAlpha(1));
     }
 
     function onMouseMove(movement) {

@@ -90,16 +90,24 @@ viewer.scene.globe.translucency.enabled = true;
       async function create(params) {
          try { 
          
-             for(let i = 0; i < 4; i++) {
+             for(let i = 0; i < 1; i++) {
                /*const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/test/output_"+i+"_g50/tileset.json", {
                  backFaceCulling : true
                });*/
-               const tileset = await Cesium.Cesium3DTileset.fromUrl("./output/new/"+i+"/tileset.json", {
-               
+               const tileset = await Cesium.Cesium3DTileset.fromUrl('./output/qq/tileset.json', {
+               debugShowBoundingVolume: true,
+                debugShowGeometricError: false,
+                debugShowRenderingStatistics: false,
+                debugShowMemoryUsage: false,
+             
+                skipLevelOfDetail: false,
+                immediatelyLoadDesiredLevelOfDetail: true,
+                loadSiblings : true
                });
+               
                viewer.scene.primitives.add(tileset);  
 
-               if(i===2){
+               if(i===0){
                  viewer.zoomTo(tileset);
                }
              }

@@ -21,11 +21,11 @@ export function CameraOrbitMode({cesiumViewer}){
 
         const center = unionTilesetCenter.center;
         const radius = unionTilesetCenter.radius;
-
+        
         // 거리/각도 설정
         const pitch = Cesium.Math.toRadians(-45.0);   // -45도 내려다보기
         const range = radius * 7.0;                   // 모델보다 조금 떨어져서
-
+    
         // 시작 시점엔 현재 heading 그대로 사용
         let heading = camera.heading;
 
@@ -35,7 +35,7 @@ export function CameraOrbitMode({cesiumViewer}){
         // 처음 lookAt으로 pivot을 center로 박아둠
         camera.lookAt(
             center,
-            new Cesium.HeadingPitchRange(heading, pitch, range)
+            new Cesium.HeadingPitchRange(heading, pitch, 3500)
         );
 
         let lastTime = performance.now() / 1000;  // 초 단위
@@ -52,7 +52,7 @@ export function CameraOrbitMode({cesiumViewer}){
 
             camera.lookAt(
                 center,
-                new Cesium.HeadingPitchRange(heading, pitch, range)
+                new Cesium.HeadingPitchRange(heading, pitch, 3500)
             );
         };
 

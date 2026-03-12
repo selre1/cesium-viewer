@@ -1,53 +1,36 @@
-
-
-
 export function CameraBaseHandler(viewer, handler) {
-   
-    let enabled = false;
-   
-    let isShiftLeftDown = false;
+  const c = viewer.scene.screenSpaceCameraController;
 
-    function setDefaultControls(enabled) {
-        const c = viewer.scene.screenSpaceCameraController;
-        c.enableRotate   = enabled;
-        c.enableTranslate= enabled;
-        c.enableZoom     = enabled;
-        c.enableTilt     = enabled;
-        c.enableLook     = enabled;
-    }
+  c.enableRotate = true;
+  c.enableTranslate = true;
+  c.enableZoom = true;
+  c.enableTilt = true;
+  c.enableLook = true;
 
-    handler.setInputAction(function () {
-        viewer.trackedEntity = undefined;
-    }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+  c.rotateEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
+  c.translateEventTypes = [Cesium.CameraEventType.RIGHT_DRAG];
+  c.lookEventTypes = [Cesium.CameraEventType.RIGHT_DRAG];
+  c.tiltEventTypes = [
+    Cesium.CameraEventType.MIDDLE_DRAG,
+    { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL },
+  ];
 
-    handler.setInputAction(() => { 
-        isShiftLeftDown = true;
-        const cam = viewer.camera;
-        cam.setView({
-            orientation: new Cesium.HeadingPitchRoll(cam.heading, cam.pitch, 0.0)
-        });
-    }, Cesium.ScreenSpaceEventType.LEFT_DOWN, Cesium.KeyboardEventModifier.SHIFT);
-    
-    handler.setInputAction(() => { 
-        isShiftLeftDown = false; 
-    }, Cesium.ScreenSpaceEventType.LEFT_UP, Cesium.KeyboardEventModifier.SHIFT);
-    
-    handler.setInputAction(() => { 
-        isShiftLeftDown = false; 
-    },Cesium.ScreenSpaceEventType.LEFT_UP);
+  handler.setInputAction(() => {
+    viewer.trackedEntity = undefined;
+  }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
-    return {
-        enable: function() {
-            if (enabled) return;
-            enabled = true;
-            setDefaultControls(false);
-            viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-        }
-        ,
-        disable: function() {
-            if (!enabled) return;
-            enabled = false;
-            setDefaultControls(true);
-        }
-    };
+  handler.setInputAction(() => {
+    c.enableZoom = false;
+    c.enableTilt = false;
+
+    const cam = viewer.camera;
+    cam.setView({
+      orientation: new Cesium.HeadingPitchRoll(cam.heading, cam.pitch, 0.0),
+    });
+  }, Cesium.ScreenSpaceEventType.RIGHT_DOWN);
+
+  handler.setInputAction(() => {
+    c.enableZoom = true;
+    c.enableTilt = true;
+  }, Cesium.ScreenSpaceEventType.RIGHT_UP);
 }

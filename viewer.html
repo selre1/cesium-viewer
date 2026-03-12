@@ -26,61 +26,65 @@ html, body {
    
   </style>
 
-
-<style>
-</style>
   <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script> -->
   <script src="./cesium/Cesium.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
    <script src="./dist/GIT.js"></script> 
+   <script src="./src/MapLayer.js"></script>
 </head>
 <body>
-<div id="viewerRoot"></div>
+<div id="viewerRoot">
+</div>
     
 </body>
 
- <script type="module">
+  <script type="module">
   import CesiumViewer from './src/index.js';
   var gitViewer = gitViewer || {};
   const config = {
     tilesetUrls:[
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wall/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/slab/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/wallstandardcase/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/beam/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/door/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/covering/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stair/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/column/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/member/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/railing/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/stairflight/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/buildingelementproxy/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowfitting/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowsegment/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/flowterminal/tileset.json',
-      //'http://tiles/6369e9a4-981f-493f-afbd-437252cafafa/openingelement/tileset.json'
+      "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/openingelement/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/railing/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/slab/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/stair/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/stairflight/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/wall/tileset.json",
 
     ],
-    info: {
-          text: "서울시 공동구입니다.",
-          longitude: 126.873689,
-          latitude: 37.527571,
-          iconSrc: "./src/under.png",
-          length: 100
-    },
+     info: {
+                text: "서울시 공동구",
+                iconSrc: "./src/under.png",
+                longitude: undefined,
+                latitude: undefined,
+                length: 100,
+                destination: {
+                    longitude: 126.87345863222825, 
+                    latitude: 37.52793533575197, 
+                    height: 20.7866826672040563
+                },
+                orientation: {
+                    heading: 1.568291123130754,
+                    pitch: -0.10286155859012203,
+                    roll: 0,
+                }
+            },
     terrain: "",
-    baseLayer : "",
-    mapLayer: {
-              'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
-              'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
-    }
+    baseLayer : ""
   };
  (async function() {
   window.app = await CesiumViewer("#viewerRoot", config);
+  MapLayer({
+      cesiumViewer: window.app.viewer,
+      options: {
+              'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
+              'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
+      },
+      toolBar: app.toolbarApi()
+  });
  })(); 
 </script> 
- <!-- <script>
+<!-- 
+ <script>
 (async function() {
   
     if (document.readyState === "loading") {
@@ -92,31 +96,45 @@ html, body {
     try{
         const config = {
             tilesetUrls:[
-        //    './output/new/0/tileset.json',
-     // './output/new/1/tileset.json',
-    //  './output/new/2/tileset.json',
-    //  './output/new/3/tileset.json'
-               'http://175.116.181.151:6095/3d-tileset/tiles_260122/0/tileset.json',
-     'http://175.116.181.151:6095/3d-tileset/tiles_260122/1/tileset.json',
-      'http://175.116.181.151:6095/3d-tileset/tiles_260122/2/tileset.json',
-      'http://175.116.181.151:6095/3d-tileset/tiles_260122/3/tileset.json'
+        "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/openingelement/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/railing/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/slab/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/stair/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/stairflight/tileset.json",
+    "http://175.116.181.32/tiles/8a0a75bf-83b2-4463-b78a-6c925b0292f4/tiles/1b010e8a-3223-4c1f-9053-d128f7b0c5dd/wall/tileset.json",
               
             ],
             
             info: {
                 text: "서울시 공동구",
                 iconSrc: "./src/under.png",
-                length: 100
+                longitude: undefined,
+                latitude: undefined,
+                length: 100,
+                destination: {
+                    longitude: 126.87345863222825, 
+                    latitude: 37.52793533575197, 
+                    height: 20.7866826672040563
+                },
+                orientation: {
+                    heading: 1.568291123130754,
+                    pitch: -0.10286155859012203,
+                    roll: 0,
+                }
             },
             terrain: "",
-            baseLayer : "",
-            mapLayer: {
-              'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
-              'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
-            }
+            baseLayer : ""
         };
         const app = await GIT("viewerRoot",config);
-        console.log(app);
+        MapLayer({
+            cesiumViewer: app.viewer,
+            options: {
+                    'SA001': { path: '/geojson/SA001.geojson', color: '#0000ff' },
+                    'SB001': { path: '/geojson/SB001.geojson', color: '#ff0000' }
+            },
+            toolBar: app.toolbarApi()
+        });
+
         /*
           addWebMapService
           update3Dtileset
@@ -132,5 +150,6 @@ html, body {
     }
     
 })();
-</script>  -->
+</script> 
+ -->
 </html>

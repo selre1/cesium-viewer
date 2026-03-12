@@ -33,6 +33,16 @@ export default async function CesiumViewer(target, options = {}) {
     const tilesets = CesiumHandler.getLoaded3DTilesets();
     tilesets.forEach(ts => {
       ts.style =  new Cesium.Cesium3DTileStyle({
+        color: {
+                    conditions: [
+                       // ["${ifc_class} === 'IfcFlowSegment'", "color('#023caf')"],
+                       // ["${ifc_class} === 'IfcFlowFitting'", "color('#023caf')"],
+                        ["${ifc_class} === 'IfcWall'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcSlab'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcWallStandardCase'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcOpeningElement'", "color('#bababa')"],
+                    ]
+                },
           show : "${ifc_class} !== '" + className + "'",
       });
     });
@@ -42,9 +52,23 @@ export default async function CesiumViewer(target, options = {}) {
     const tilesets = CesiumHandler.getLoaded3DTilesets();
     tilesets.forEach(ts => {
       ts.style =  new Cesium.Cesium3DTileStyle({
+        color: {
+                    conditions: [
+                       // ["${ifc_class} === 'IfcFlowSegment'", "color('#023caf')"],
+                       // ["${ifc_class} === 'IfcFlowFitting'", "color('#023caf')"],
+                        ["${ifc_class} === 'IfcWall'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcSlab'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcWallStandardCase'", "color('#bababa')"],
+                        ["${ifc_class} === 'IfcOpeningElement'", "color('#bababa')"],
+                    ]
+                },
           show : "${ifc_class} !== 'IfcOpeningElement'",
       });
     });
+  }
+
+  function toolbarApi(){
+    return CesiumHandler.getToolbarApi();
   }
 
   return {
@@ -55,6 +79,7 @@ export default async function CesiumViewer(target, options = {}) {
     update3Dtileset,
     addWebMapService,
     applyInvisibleTiles,
-    applyVisibleTiles
+    applyVisibleTiles,
+    toolbarApi
   };
 }
